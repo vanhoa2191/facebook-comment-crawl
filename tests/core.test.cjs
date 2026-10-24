@@ -136,3 +136,28 @@ test('roster reconciliation links exact identities and preserves manual decision
   assert.equal(result.matched, 1);
   assert.equal(result.ambiguous, 1);
 });
+
+
+test('legacy state migration preserves valid history and fills new fields', () => {
+  const legacy = {
+    trackedPeople: [{ id: 'p1', name: 'An', profileUrl: 'https://www.facebook.com/anna' }],
+    comments: [{
+      id: 'c1', sourceKey: 'key1', postUrl: 'https://www.facebook.com/page/posts/123',
+      authorName: 'An', authorProfileUrl: 'https://www.facebook.com/anna', text: 'Old comment',
+      personId: 'p1', parentCommentId: '', depth: 0, collectedAt: '2026-10-20T00:00:00.000Z'
+    }],
+    reports: [{ id: 'r1', title: 'Saved report', text: 'Keep me', createdAt: '2026-10-21T00:00:00.000Z' }],
+    settings: { weeklyDays: 7, lastReportAt: '' },
+    logs: []
+  };
+  const migrated = C.migrateState(legacy);
+  assert.equal(C.valid(migrated), true);
+  assert.equal(migrated.trackedPeople[0].profileId, 'username:anna');
+  assert.equal(migrated.trackedPeople[0].notes, '');
+  assert.equal(migrated.comments[0].text, 'Old comment');
+  assert.equal(migrated.comments[0].replyCount, 0);
+  assert.equal(migrated.comments[0].commentedAt, '');
+  assert.equal(migrated.comments[0].personId, 'p1');
+  assert.equal(migrated.reports[0].text, 'Keep me');
+  assert.equal(migrated.settings.weeklyCursor, 0);
+});
