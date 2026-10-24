@@ -57,8 +57,12 @@
     if (typeof message.prompt !== 'string' || !message.prompt.trim() || message.prompt.length > 19000) {
       return { ok: false, error: 'Prompt phải có từ 1 đến 19.000 ký tự.' };
     }
-    const box = composer();
-    if (!box) return { ok: false, error: 'Không tìm thấy ô nhập Meta AI. Hãy đăng nhập và mở cuộc trò chuyện Meta AI.' };
+    let box = null;
+    for (let attempt = 0; attempt < 30 && !box; attempt += 1) {
+      box = composer();
+      if (!box) await sleep(500);
+    }
+    if (!box) return { ok: false, error: 'Không tìm thấy ô nhập Meta AI sau khi chờ tải giao diện. Hãy đăng nhập và mở cuộc trò chuyện Meta AI.' };
 
     const before = new Map(responseNodes(box).map(element => [element, text(element)]));
     setValue(box, message.prompt.trim());
