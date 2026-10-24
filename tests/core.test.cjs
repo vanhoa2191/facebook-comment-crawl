@@ -46,3 +46,16 @@ test('a matching name does not override a different known profile URL', () => {
   assert.equal(result.status, 'unmatched');
   assert.equal(result.personId, '');
 });
+
+
+test('comments without an original timestamp are excluded from time trends', () => {
+  const person = { id: 'p1', name: 'An' };
+  const comments = [
+    { id: 'timed', personId: 'p1', text: 'known date', commentedAt: '2026-10-23T00:00:00Z', collectedAt: '2026-10-23T00:00:00Z', permalink: 'https://facebook.com/p/posts/2' },
+    { id: 'untimed', personId: 'p1', text: 'unknown date', commentedAt: '', collectedAt: '2026-10-23T00:00:00Z', permalink: 'https://facebook.com/p/posts/3' }
+  ];
+  const prompt = C.analysisPrompt(person, comments, 7, Date.parse('2026-10-24T00:00:00Z'));
+  assert.match(prompt, /1 bình luận không có thời gian gốc/);
+  assert.match(prompt, /known date/);
+  assert.doesNotMatch(prompt, /unknown date/);
+});
