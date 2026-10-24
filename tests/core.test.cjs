@@ -6,6 +6,8 @@ const C = require('../core.js');
 test('default state validates and starts the weekly cursor at zero', () => { const state = C.defaults(); assert.equal(C.valid(state), true); assert.equal(state.settings.weeklyCursor, 0); });
 test('post URL validation rejects non-posts and unsafe hosts', () => {
   assert.equal(C.postUrl('https://www.facebook.com/page/posts/123'), true);
+  assert.equal(C.postUrl('https://www.facebook.com/share/p/abc123/'), true);
+  assert.equal(C.postUrl('https://www.facebook.com/share/v/xyz789/'), true);
   assert.equal(C.postUrl('https://www.facebook.com/'), false);
   assert.equal(C.postUrl('https://evil.example/page/posts/123'), false);
 });
