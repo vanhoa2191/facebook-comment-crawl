@@ -138,7 +138,7 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
   const result = await new Promise(resolve => {
     assert.equal(listeners[0]({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve), true);
   });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.comments.length, 2);
   assert.equal(result.comments[0].authorName, 'Anna');
   assert.equal(result.comments[0].text, 'A main comment with useful context.');
