@@ -1,1 +1,215 @@
-(function(){'use strict';if(window.__commentCrawlBridge)return;window.__commentCrawlBridge=true;const sleep=ms=>new Promise(r=>setTimeout(r,ms));const text=e=>String(e&&(e.innerText||e.textContent)||"").replace(/\u00a0/g," ").trim();const visible=e=>{if(!e||!e.isConnected)return false;try{const s=getComputedStyle(e);return s.display!=="none"&&s.visibility!=="hidden"&&e.getClientRects().length>0;}catch(_){return true;}};function safe(u){try{const x=new URL(u,location.href);return x.protocol==="https:"&&!x.port&&["facebook.com","www.facebook.com","m.facebook.com","web.facebook.com"].includes(x.hostname.toLowerCase());}catch(_){return false;}}function post(u){if(!safe(u))return false;const x=new URL(u,location.href);return /\/(posts|permalink|videos?|reel|photos?|watch)(\/|$)/i.test(x.pathname)||x.searchParams.has("story_fbid")||x.searchParams.has("comment_id")||x.searchParams.has("reply_comment_id");}function profile(a){for(const x of a.querySelectorAll("a[href]")){const href=new URL(x.getAttribute("href"),location.href).href,n=text(x);if(!n||n.length>200||!safe(href))continue;const u=new URL(href),p=u.pathname.toLowerCase();if((p==="/profile.php"&&u.searchParams.has("id"))||/^\/people\/[^/]+\/[^/]+/.test(p)||/^\/pages\/[^/]+\/[^/]+/.test(p)||(/^\/[^/]+\/?$/.test(p)&&!/(groups|posts|photos|videos|watch|reel|events|marketplace|stories|search|messages|notifications|friends|settings)/.test(p)))return {name:n,url:href,id:u.searchParams.get("id")||(/^\/people\/[^/]+\/([^/]+)/.exec(p)||[])[1]||(/^\/pages\/[^/]+\/([^/]+)/.exec(p)||[])[1]||(/^\/([^/]+)\/?$/.exec(p)||[])[1]||""};}return {name:"",url:"",id:""};}function time(root){const e=root.querySelector("time[datetime],abbr[title],[data-utime]");if(!e)return {iso:"",label:""};const raw=e.getAttribute("datetime")||e.getAttribute("title")||e.getAttribute("data-utime")||text(e);let n=Date.parse(raw);if(/^\d{9,13}$/.test(raw))n=Number(raw)*(raw.length===10?1000:1);return {iso:Number.isFinite(n)?new Date(n).toISOString():"",label:raw.slice(0,200)};}function extract(main,postUrl){const roots=Array.from(main.querySelectorAll('[role="article"]')).filter(visible);const out=[],seen=new Set();for(const root of roots){const author=profile(root);if(!author.name)continue;let blocks=Array.from(root.querySelectorAll('div[dir="auto"],span[dir="auto"]')).filter(visible).map(text).filter(t=>t&&t.length<=4000&&!/^(like|reply|share|thích|trả lời|chia sẻ|xem thêm)$/i.test(t));blocks=Array.from(new Set(blocks)).filter(t=>normalize(t)!==normalize(author.name));if(!blocks.length)continue;const content=blocks.slice(0,5).join("\n").slice(0,4000);if(!content)continue;const links=Array.from(root.querySelectorAll("a[href]")).map(a=>new URL(a.getAttribute("href"),location.href).href).filter(u=>safe(u)&&(/[?&](comment_id|reply_comment_id)=/i.test(u)||/\/(posts|permalink|story\.php|photo|videos?|reel)\//i.test(new URL(u).pathname)));const permalink=links[0]||"";let id="";try{const u=new URL(permalink);id=u.searchParams.get("comment_id")||u.searchParams.get("reply_comment_id")||"";}catch(_){}const tm=time(root);const source=id?"c_"+id:"h_"+hash(author.url+"|"+tm.label+"|"+content);if(seen.has(source))continue;seen.add(source);let depth=0,p=root.parentElement;while(p&&p!==main){if(p.getAttribute&&p.getAttribute("role")==="article")depth++;p=p.parentElement;}const replies=Array.from(root.querySelectorAll("button,[role=button]")).map(text).join(" ");const rm=replies.match(/(\d+)\s*(repl(?:y|ies)|câu trả lời|phản hồi)/i);out.push({id:hash(postUrl)+"_"+source,sourceKey:hash(postUrl)+"_"+source,postUrl,postTitle:(document.title||"").slice(0,300),authorName:author.name,authorProfileUrl:author.url,authorProfileId:author.id,text:content,parentCommentId:"",depth:Math.max(0,Math.min(20,depth-1)),commentedAt:tm.iso,commentedAtLabel:tm.label,collectedAt:new Date().toISOString(),permalink:permalink.slice(0,2048),replyCount:rm?Math.min(10000,Number(rm[1])):0});}return out;}function normalize(s){return String(s||"").normalize("NFKC").trim().toLowerCase().replace(/\s+/g," ");}function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16);}async function collect(m){if(!post(location.href))return {ok:false,error:"Hãy mở bài viết Facebook ở trang riêng/permalink trước."};const u=new URL(location.href);u.hash="";const postUrl=u.href.slice(0,2048),main=document.querySelector('[role="main"]')||document.querySelector("main")||document.body;const max=Math.min(80,Math.max(1,Number(m.maxRounds)||50)),clicked=new WeakSet();let idle=0,expanded=0,round=0;for(;round<max;round++){const before=main.querySelectorAll('[role="article"]').length;for(const b of Array.from(document.querySelectorAll("button,[role=button]"))){if(expanded>=200)break;if(clicked.has(b)||!visible(b))continue;const label=text(b)+" "+(b.getAttribute("aria-label")||"");if(/more comments|previous comments|more repl|all repl|xem thêm bình luận|xem bình luận trước|xem thêm câu trả lời|xem tất cả câu trả lời|hiển thị thêm bình luận|xem thêm phản hồi/i.test(label)){clicked.add(b);try{b.click();expanded++;}catch(_){}}}try{window.scrollTo(0,Math.max(document.documentElement.scrollHeight,document.body.scrollHeight));}catch(_){}await sleep(220);const after=main.querySelectorAll('[role="article"]').length;if(after>before)idle=0;else idle++;if(idle>=4)break;}const comments=extract(main,postUrl);if(!comments.length)return {ok:false,error:"Chưa nhận diện được bình luận. Chọn Tất cả bình luận và mở rộng câu trả lời rồi thử lại; giao diện Facebook có thể đã thay đổi."};return {ok:true,postUrl,comments,expanded,rounds:round+1,note:"Chỉ đọc nội dung đang hiển thị trên bài đang mở; không truy cập bình luận bị ẩn hoặc dữ liệu ngoài quyền xem."};}chrome.runtime.onMessage.addListener((m,s,reply)=>{if(!m||m.type!=="COMMENT_CRAWL_COLLECT")return false;collect(m).then(reply).catch(e=>reply({ok:false,error:String(e.message||e).slice(0,1000)}));return true;});})();
+(function () {
+  'use strict';
+  if (window.__commentCrawlBridge) return;
+  window.__commentCrawlBridge = true;
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const text = element => String(element && (element.innerText || element.textContent) || '')
+    .replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').trim();
+  const normalize = value => String(value || '').normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  function visible(element) {
+    if (!element || !element.isConnected) return false;
+    try {
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+    } catch (_) { return true; }
+  }
+  function safeFacebookUrl(value) {
+    try {
+      const url = new URL(value, window.location.href);
+      return url.protocol === 'https:' && !url.port &&
+        ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'web.facebook.com'].includes(url.hostname.toLowerCase()) &&
+        !url.username && !url.password;
+    } catch (_) { return false; }
+  }
+  function isPostUrl(value) {
+    if (!safeFacebookUrl(value)) return false;
+    try {
+      const url = new URL(value, window.location.href);
+      return /\/(posts|permalink|videos?|reel|photos?|watch)(\/|$)/i.test(url.pathname) ||
+        url.searchParams.has('story_fbid') || url.searchParams.has('comment_id') || url.searchParams.has('reply_comment_id');
+    } catch (_) { return false; }
+  }
+  function canonicalPostUrl(value) {
+    const url = new URL(value, window.location.href);
+    url.hash = '';
+    ['__cft__', '__tn__', 'mibextid', 'ref', 'refid', 'paipv', 'rdid', 'locale', 'acontext'].forEach(key => url.searchParams.delete(key));
+    return url.href.slice(0, 2048);
+  }
+  function hash(value) {
+    let result = 2166136261;
+    const source = String(value || '');
+    for (let i = 0; i < source.length; i += 1) {
+      result ^= source.charCodeAt(i);
+      result = Math.imul(result, 16777619);
+    }
+    return (result >>> 0).toString(16).padStart(8, '0');
+  }
+  function belongsToRoot(element, root) {
+    if (!element.closest) return true;
+    const article = element.closest('[role="article"]');
+    return !article || article === root;
+  }
+  function profile(root) {
+    const anchors = Array.from(root.querySelectorAll('a[href]')).filter(anchor => belongsToRoot(anchor, root));
+    for (const anchor of anchors) {
+      const href = new URL(anchor.getAttribute('href'), window.location.href).href;
+      const name = text(anchor);
+      if (!name || name.length > 200 || !safeFacebookUrl(href)) continue;
+      const url = new URL(href);
+      const path = url.pathname.toLowerCase();
+      const looksLikeProfile = (path === '/profile.php' && !!url.searchParams.get('id')) ||
+        /^\/people\/[^/]+\/[^/]+/i.test(path) ||
+        /^\/pages\/[^/]+\/[^/]+/i.test(path) ||
+        (/^\/[^/]+\/?$/i.test(path) && !/^(groups|posts|photos?|videos?|watch|reel|events|marketplace|stories|search|messages|notifications|friends|settings)$/i.test(path.slice(1)));
+      if (!looksLikeProfile) continue;
+      const match = path.match(/^\/(?:people\/[^/]+\/|pages\/[^/]+\/)?([^/]+)\/?$/i);
+      return {
+        name,
+        url: href.slice(0, 2048),
+        id: (url.searchParams.get('id') || (match && match[1]) || '').slice(0, 200)
+      };
+    }
+    return { name: '', url: '', id: '' };
+  }
+  function ownTextBlocks(root) {
+    const nodes = Array.from(root.querySelectorAll('div[dir="auto"], span[dir="auto"]'))
+      .filter(element => visible(element) && belongsToRoot(element, root));
+    const authorName = normalize(profile(root).name);
+    let values = nodes.map(text).filter(value => value && value.length <= 4000 &&
+      !/^(like|reply|share|send|follow|see translation|hide|report|thích|trả lời|chia sẻ|gửi|theo dõi|xem bản dịch|ẩn|báo cáo|most relevant|all comments|viết bình luận|write a comment|edited)$/i.test(value));
+    values = Array.from(new Set(values)).filter(value => normalize(value) !== authorName);
+    values = values.filter(value => !values.some(other => other !== value && other.length > value.length && other.includes(value)));
+    return values.slice(0, 5);
+  }
+  function directTimestamp(root) {
+    const element = Array.from(root.querySelectorAll('time[datetime], abbr[title], [data-utime]'))
+      .find(node => belongsToRoot(node, root));
+    if (!element) return { iso: '', label: '' };
+    const raw = element.getAttribute('datetime') || element.getAttribute('title') ||
+      element.getAttribute('data-utime') || text(element);
+    let millis = Date.parse(raw);
+    if (/^\d{9,13}$/.test(raw)) millis = Number(raw) * (raw.length === 10 ? 1000 : 1);
+    return { iso: Number.isFinite(millis) ? new Date(millis).toISOString() : '', label: raw.slice(0, 200) };
+  }
+  function directPermalink(root) {
+    const anchors = Array.from(root.querySelectorAll('a[href]')).filter(anchor => belongsToRoot(anchor, root));
+    const urls = anchors.map(anchor => new URL(anchor.getAttribute('href'), window.location.href).href).filter(safeFacebookUrl);
+    return (urls.find(url => /[?&](comment_id|reply_comment_id)=/i.test(url)) ||
+      urls.find(url => /\/(posts|permalink|story\.php|photo|videos?|reel)\//i.test(new URL(url).pathname)) || '').slice(0, 2048);
+  }
+  function extractCommentId(permalink, root, author, timeLabel, content) {
+    try {
+      const url = new URL(permalink);
+      const id = url.searchParams.get('reply_comment_id') || url.searchParams.get('comment_id');
+      if (id) return 'comment_' + id.slice(0, 100);
+    } catch (_) {}
+    const domId = String(root.id || '').match(/(?:comment|reply)[_-]?(\d{3,})/i);
+    if (domId) return 'comment_' + domId[1];
+    return 'hash_' + hash(author.url + '|' + timeLabel + '|' + content);
+  }
+  function isLikelyCommentRoot(root, main, author, permalink, content) {
+    if (!author.name || !content || root === main) return false;
+    const ownButtons = Array.from(root.querySelectorAll('button,[role="button"],a[role="button"]'))
+      .filter(element => belongsToRoot(element, root)).map(text).join(' ');
+    const hasReplyControl = /(^|\s)(reply|trả lời)(\s|$)/i.test(ownButtons);
+    const hasCommentId = /[?&](comment_id|reply_comment_id)=/i.test(permalink);
+    const nestedArticles = Array.from(root.querySelectorAll('[role="article"]')).filter(visible).length;
+    const hasComposer = !!root.querySelector('[contenteditable="true"],[role="textbox"],textarea');
+    if (hasComposer && nestedArticles > 0) return false;
+    if (nestedArticles > 0 && !hasReplyControl && !hasCommentId) return false;
+    if (content.length > 1800 && !hasReplyControl && !hasCommentId) return false;
+    return true;
+  }
+  function extractComments(main, postUrl) {
+    const roots = Array.from(main.querySelectorAll('[role="article"]')).filter(visible);
+    const output = [];
+    const seen = new Set();
+    const rootToSource = new WeakMap();
+
+    for (const root of roots) {
+      const author = profile(root);
+      const content = ownTextBlocks(root).join('\n').trim().slice(0, 4000);
+      const permalink = directPermalink(root);
+      if (!isLikelyCommentRoot(root, main, author, permalink, content)) continue;
+
+      const timestamp = directTimestamp(root);
+      const sourceIdentity = extractCommentId(permalink, root, author, timestamp.label, content);
+      const sourceKey = hash(postUrl) + ':' + sourceIdentity;
+      if (seen.has(sourceKey)) continue;
+      seen.add(sourceKey);
+
+      let parent = root.parentElement;
+      let parentCommentId = '';
+      let depth = 0;
+      while (parent && parent !== main) {
+        if (parent.getAttribute && parent.getAttribute('role') === 'article' && rootToSource.has(parent)) {
+          depth += 1;
+          if (!parentCommentId) parentCommentId = rootToSource.get(parent);
+        }
+        parent = parent.parentElement;
+      }
+      rootToSource.set(root, sourceKey);
+
+      const buttons = Array.from(root.querySelectorAll('button,[role="button"]')).filter(element => belongsToRoot(element, root)).map(text).join(' ');
+      const replyMatch = buttons.match(/(\d+)\s*(repl(?:y|ies)|câu trả lời|phản hồi)/i);
+      output.push({
+        id: sourceKey.slice(0, 200), sourceKey: sourceKey.slice(0, 250), postUrl,
+        postTitle: String(document.title || '').slice(0, 300),
+        authorName: author.name.slice(0, 200), authorProfileUrl: author.url,
+        authorProfileId: author.id, text: content, parentCommentId,
+        depth: Math.max(0, Math.min(20, depth)), commentedAt: timestamp.iso,
+        commentedAtLabel: timestamp.label, collectedAt: new Date().toISOString(),
+        permalink, replyCount: replyMatch ? Math.min(10000, Number(replyMatch[1])) : 0
+      });
+    }
+    return output;
+  }
+  function expandButtons(limit, clicked) {
+    let count = 0;
+    const buttons = Array.from(document.querySelectorAll('button,[role="button"]')).filter(visible);
+    for (const button of buttons) {
+      if (count >= limit || clicked.has(button)) continue;
+      const label = (text(button) + ' ' + (button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).trim();
+      if (!/(more comments|previous comments|more repl(?:y|ies)|all repl(?:y|ies)|xem thêm bình luận|xem bình luận trước|xem thêm câu trả lời|xem tất cả câu trả lời|tải thêm bình luận|hiển thị thêm bình luận|xem thêm phản hồi)/i.test(label)) continue;
+      clicked.add(button);
+      try { button.click(); count += 1; } catch (_) {}
+    }
+    return count;
+  }
+  async function collect(message) {
+    if (!isPostUrl(window.location.href)) return { ok: false, error: 'Hãy mở bài viết Facebook ở trang riêng/permalink trước.' };
+    const postUrl = canonicalPostUrl(window.location.href);
+    const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
+    if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
+    const originalY = Number(window.scrollY || 0);
+    const maxRounds = Math.min(80, Math.max(1, Number(message && message.maxRounds) || 60));
+    const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
+    const clicked = new WeakSet();
+    let expanded = 0, idleRounds = 0, rounds = 0;
+    for (; rounds < maxRounds; rounds += 1) {
+      const before = main.querySelectorAll('[role="article"]').length;
+      const clickedNow = expandButtons(maxClicks - expanded, clicked);
+      expanded += clickedNow;
+      try { window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)); } catch (_) {}
+      await sleep(300);
+      const after = main.querySelectorAll('[role="article"]').length;
+      if (after > before || clickedNow > 0) idleRounds = 0;
+      else idleRounds += 1;
+      if (idleRounds >= 4 || expanded >= maxClicks) break;
+    }
+    const comments = extractComments(main, postUrl);
+    try { window.scrollTo(0, originalY); } catch (_) {}
+    if (!comments.length) return { ok: false, error: 'Chưa nhận diện được bình luận. Chọn “Tất cả bình luận”, mở rộng câu trả lời rồi thử lại. Facebook có thể đã thay đổi giao diện.' };
+    return {
+      ok: true, postUrl, comments, expanded, rounds: rounds + 1,
+      note: 'Chỉ thu thập nội dung Facebook đang hiển thị cho tài khoản này. Bình luận ẩn, đã xóa hoặc ngoài quyền xem sẽ không được truy cập.'
+    };
+  }
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.type !== 'COMMENT_CRAWL_COLLECT') return false;
+    collect(message).then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error && error.message || error).slice(0, 1000) }));
+    return true;
+  });
+})();
