@@ -134,7 +134,7 @@
       const author = profile(root);
       const content = ownTextBlocks(root).join('\n').trim().slice(0, 4000);
       const permalink = directPermalink(root);
-      if (!isLikelyCommentRoot(root, main, author, permalink, content)) continue;
+      if (!isLikelyCommentRoot(root, scope, author, permalink, content)) continue;
 
       const timestamp = directTimestamp(root);
       const sourceIdentity = extractCommentId(permalink, root, author, timestamp.label, content);
