@@ -27,3 +27,12 @@ test('XLSX export strips XML-invalid control characters', async () => {
   assert.doesNotMatch(raw, /before\u0000after/);
   assert.match(raw, /beforeafter/);
 });
+
+
+test('long reports split into Excel-safe cell lengths without losing text', () => {
+  const input = 'report-data-'.repeat(7000);
+  const chunks = Sheet.splitText(input, 30000);
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every(chunk => chunk.length <= 30000));
+  assert.equal(chunks.join(''), input);
+});
