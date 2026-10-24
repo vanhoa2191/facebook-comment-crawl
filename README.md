@@ -4,9 +4,9 @@ Chrome Extension (Manifest V3) for collecting comments/replies rendered on a sel
 
 ## Features
 - Best-effort collection scoped to the selected post permalink. It expands visible comment/reply controls and preserves parent/reply links where Facebook exposes enough DOM information.
-- Displays collected comments with search, incremental paging, and a **show all** option. Each tracked profile has a chronological comment-history view with observed reply counts. Local history is capped at 10,000 comments and 10,000 tracked profiles for browser responsiveness.
+- Displays collected comments with search, post/date filters, match-status filters, incremental paging, and a **show all** option. The dashboard includes a 14-day activity chart. Each tracked profile has a chronological comment-history view with observed reply counts. Local history is capped at 10,000 comments and 10,000 tracked profiles for browser responsiveness.
 - Imports roster data from CSV or XLSX (first worksheet; Vietnamese/English headers such as \`Tên Facebook\`, \`Mã đối chiếu\`, \`URL hồ sơ\`, \`profileUrl\`, \`profileId\`, and \`rosterId\` are recognized).
-- Matches profile URL first, then profile ID, then a unique display name. A known different profile URL prevents name-only merging; ambiguous same-name entries remain flagged.
+- Matches profile URL first, then profile ID, then a unique display name. A known different profile URL prevents name-only merging; ambiguous same-name entries remain flagged. Users can manually assign a comment to a profile, apply that choice to comments sharing the same URL/ID, and reconcile comments again after importing a roster.
 - Stores comments, profiles and reports in Chrome local storage. Exports JSON, CSV and XLSX; long report text is split across valid Excel cells. Individual profiles and reports can be deleted; the settings view includes delete-all.
 - Uses Meta AI through its visible website UI only; no Meta AI API. Before sending, a review dialog displays every exact prompt. The user must open each prompt, check the approval box and click send. Editing any prompt resets approval.
 - If automatic Meta AI sending or response reading fails, a manual fallback lets the user select/copy the already-reviewed prompt and paste the response. The extension does not blindly retry a send.
