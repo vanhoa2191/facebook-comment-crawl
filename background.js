@@ -18,7 +18,7 @@ async function markWeeklyReminderDue() {
   if (!state.settings.weeklyDueAt) {
     state.settings.weeklyDueAt = now;
     state.logs = Array.isArray(state.logs) ? state.logs : [];
-    state.logs.unshift({ at: now, message: 'Đến kỳ nhắc tổng hợp báo cáo bình luận hằng tuần. Cần mở dashboard và xác nhận trước khi gửi dữ liệu sang Meta AI Web.' });
+    state.logs.unshift({ at: now, message: 'Đến kỳ nhắc tổng hợp báo cáo hằng tuần. Mở Side Panel và xác nhận trước khi gửi dữ liệu sang Meta AI Web.' });
     state.logs = state.logs.slice(0, 500);
     await chrome.storage.local.set({ [KEY]: state });
   }
@@ -26,7 +26,15 @@ async function markWeeklyReminderDue() {
   await chrome.action.setBadgeBackgroundColor({ color: '#2563eb' });
   await chrome.action.setTitle({ title: 'Facebook Comment Crawl: đến kỳ tổng hợp báo cáo' });
 }
-chrome.action.onClicked.addListener(() => chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') }));
+chrome.action.onClicked.addListener(async tab => {
+  if (chrome.sidePanel && typeof chrome.sidePanel.open === 'function' && Number.isInteger(tab && tab.windowId)) {
+    try {
+      await chrome.sidePanel.open({ windowId: tab.windowId });
+      return;
+    } catch (_) {}
+  }
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+});
 chrome.runtime.onInstalled.addListener(() => scheduleWeeklyReminder().catch(() => {}));
 chrome.runtime.onStartup.addListener(() => scheduleWeeklyReminder().catch(() => {}));
 chrome.alarms.onAlarm.addListener(alarm => {
