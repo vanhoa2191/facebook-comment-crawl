@@ -169,3 +169,9 @@ test('weekly report cursor advances only by completed profile batches', () => {
   assert.equal(C.advanceWeeklyCursor(45, 33, 12), 0);
   assert.equal(C.advanceWeeklyCursor(0, 0, 3), 0);
 });
+
+
+test('Vietnamese roster column aliases normalize profile IDs and links', () => {
+  const headers = ['URL Facebook', 'ID hồ sơ', 'Mã hồ sơ'].map(C.normalizeHeader);
+  assert.deepEqual(headers, ['urlfacebook', 'idhoso', 'mahoso']);
+});
