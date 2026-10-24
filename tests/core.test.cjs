@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const C = require('../core.js');
 
-test('default state validates', () => assert.equal(C.valid(C.defaults()), true));
+test('default state validates and starts the weekly cursor at zero', () => { const state = C.defaults(); assert.equal(C.valid(state), true); assert.equal(state.settings.weeklyCursor, 0); });
 test('post URL validation rejects non-posts and unsafe hosts', () => {
   assert.equal(C.postUrl('https://www.facebook.com/page/posts/123'), true);
   assert.equal(C.postUrl('https://www.facebook.com/'), false);
@@ -66,4 +66,11 @@ test('Vietnamese roster headers normalize accents and separators', () => {
   assert.equal(C.normalizeHeader('Tên Facebook'), 'tenfacebook');
   assert.equal(C.normalizeHeader('Mã đối chiếu'), 'madoichieu');
   assert.equal(C.normalizeHeader('Profile_URL'), 'profileurl');
+});
+
+
+test('state validation rejects unsafe profile and comment links', () => {
+  const state = C.defaults();
+  state.trackedPeople.push({ id: 'p1', name: 'An', profileUrl: 'https://evil.example/an', profileId: '', rosterId: '', notes: '' });
+  assert.equal(C.valid(state), false);
 });
