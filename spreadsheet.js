@@ -1,6 +1,6 @@
 (function(root,factory){const api=factory();if(typeof module==="object"&&module.exports)module.exports=api;if(root)root.CommentSheet=api;})(typeof globalThis!=="undefined"?globalThis:this,function(){"use strict";
 const enc=new TextEncoder();
-function xml(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));}
+function xml(s){return String(s==null?"":s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));}
 function col(n){let s="";for(n++;n;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s;}
 function crc(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let k=0;k<8;k++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
 function create(sheets){const data=[];const ss=(Array.isArray(sheets)?sheets:[]).slice(0,8).map((s,i)=>({name:String(s.name||("Sheet"+(i+1))).replace(/[\[\]:*?\/\\]/g," ").slice(0,31),rows:(s.rows||[]).slice(0,50001)}));if(!ss.length)ss.push({name:"Data",rows:[]});
