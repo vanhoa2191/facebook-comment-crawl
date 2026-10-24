@@ -141,6 +141,7 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
   assert.equal(result.ok, true, JSON.stringify(result));
   assert.equal(result.comments.length, 2);
   assert.equal(result.comments[0].authorName, 'Anna');
+  assert.equal(result.comments[0].authorProfileId, 'username:anna');
   assert.equal(result.comments[0].text, 'A main comment with useful context.');
   assert.equal(result.comments[0].depth, 0);
   assert.equal(result.comments[1].authorName, 'Bob');
