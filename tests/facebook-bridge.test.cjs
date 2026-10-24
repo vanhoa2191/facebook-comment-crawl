@@ -187,7 +187,7 @@ test('Facebook bridge retains comments seen before the DOM virtualizes them away
   const document = {
     title: 'Sample Page post',
     body: main,
-    documentElement: { scrollHeight: 200 },
+    documentElement: { scrollHeight: 2000, clientHeight: 800, scrollTop: 0 },
     querySelector(selector) { return selector === '[role="main"]' || selector === 'main' ? main : null; },
     querySelectorAll(selector) { return main.querySelectorAll(selector); }
   };
