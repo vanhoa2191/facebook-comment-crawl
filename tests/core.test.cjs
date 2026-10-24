@@ -74,3 +74,10 @@ test('state validation rejects unsafe profile and comment links', () => {
   state.trackedPeople.push({ id: 'p1', name: 'An', profileUrl: 'https://evil.example/an', profileId: '', rosterId: '', notes: '' });
   assert.equal(C.valid(state), false);
 });
+
+
+test('state validation accepts a complete multi-batch report larger than one prompt', () => {
+  const state = C.defaults();
+  state.reports.push({ id: 'r1', title: 'Weekly', text: 'x'.repeat(50000), createdAt: '2026-10-24T00:00:00.000Z' });
+  assert.equal(C.valid(state), true);
+});
