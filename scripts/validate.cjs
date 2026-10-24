@@ -29,4 +29,5 @@ assert.equal(Core.normalizeHeader('Tên Facebook'),'tenfacebook');
 assert.equal(typeof Core.filterComments,'function');
 assert.equal(typeof Core.migrateState,'function');
 assert.equal(typeof Core.reconcileComments,'function');
+assert.equal(typeof Core.advanceWeeklyCursor,'function');
 console.log('Validation passed: Manifest V3, JavaScript syntax, local state, weekly reminder, roster header normalization and Meta AI Web UI review.');
