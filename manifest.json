@@ -5,7 +5,8 @@
   "description": "Thu thập bình luận bài đang mở, đối chiếu hồ sơ và lập báo cáo cục bộ.",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "unlimitedStorage"
   ],
   "action": {
     "default_title": "Mở Facebook Comment Crawl"
