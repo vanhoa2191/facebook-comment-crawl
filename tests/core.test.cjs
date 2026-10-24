@@ -28,7 +28,7 @@ test('CSV export protects formula injection', () => assert.match(C.csv([['=1+1']
 test('analysis prompt compares time windows and forbids sensitive inference', () => {
   const person = { id: 'p1', name: 'An' };
   const comments = [
-    { id: 'old', personId: 'p1', text: 'old', commentedAt: '2026-10-10T00:00:00Z', permalink: 'https://facebook.com/p/posts/1' },
+    { id: 'old', personId: 'p1', text: 'chủ đề trước', commentedAt: '2026-10-10T00:00:00Z', permalink: 'https://facebook.com/p/posts/1' },
     { id: 'new', personId: 'p1', text: 'new', commentedAt: '2026-10-23T00:00:00Z', permalink: 'https://facebook.com/p/posts/2' }
   ];
   const prompt = C.analysisPrompt(person, comments, 7, Date.parse('2026-10-24T00:00:00Z'));
@@ -36,5 +36,5 @@ test('analysis prompt compares time windows and forbids sensitive inference', ()
   assert.match(prompt, /Giai đoạn gần đây/);
   assert.match(prompt, /Không suy đoán thuộc tính nhạy cảm/);
   assert.match(prompt, /new/);
-  assert.doesNotMatch(prompt, /old/);
+  assert.doesNotMatch(prompt, /chủ đề trước/);
 });
