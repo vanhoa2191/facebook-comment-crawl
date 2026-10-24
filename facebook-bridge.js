@@ -119,11 +119,13 @@
     const hasComposer = !!root.querySelector('[contenteditable="true"],[role="textbox"],textarea');
     if (hasComposer && nestedArticles > 0) return false;
     if (nestedArticles > 0 && !hasReplyControl && !hasCommentId) return false;
-    if (content.length > 1800 && !hasReplyControl && !hasCommentId) return false;
+    const label = ((root.getAttribute && root.getAttribute('aria-label')) || '') + ' ' + ((root.getAttribute && root.getAttribute('data-testid')) || '');
+    if (/feed post|post by|bài viết của/i.test(label) && !hasReplyControl && !hasCommentId) return false;
+    if (content.length > 800 && !hasReplyControl && !hasCommentId) return false;
     return true;
   }
-  function extractComments(main, postUrl) {
-    const roots = Array.from(main.querySelectorAll('[role="article"]')).filter(visible);
+  function extractComments(scope, postUrl) {
+    const roots = Array.from(scope.querySelectorAll('[role="article"]')).filter(visible);
     const output = [];
     const seen = new Set();
     const rootToSource = new WeakMap();
@@ -143,7 +145,7 @@
       let parent = root.parentElement;
       let parentCommentId = '';
       let depth = 0;
-      while (parent && parent !== main) {
+      while (parent && parent !== scope) {
         if (parent.getAttribute && parent.getAttribute('role') === 'article' && rootToSource.has(parent)) {
           depth += 1;
           if (!parentCommentId) parentCommentId = rootToSource.get(parent);
@@ -166,9 +168,29 @@
     }
     return output;
   }
-  function expandButtons(limit, clicked) {
+  function samePostLink(candidate, target) {
+    if (!safeFacebookUrl(candidate)) return false;
+    try {
+      const left = new URL(candidate), right = new URL(target);
+      if (left.searchParams.has('comment_id') || left.searchParams.has('reply_comment_id')) return false;
+      const leftStory = left.searchParams.get('story_fbid') || left.searchParams.get('fbid');
+      const rightStory = right.searchParams.get('story_fbid') || right.searchParams.get('fbid');
+      if (leftStory || rightStory) return !!leftStory && leftStory === rightStory &&
+        (!left.searchParams.get('id') || !right.searchParams.get('id') || left.searchParams.get('id') === right.searchParams.get('id'));
+      return left.pathname.replace(/\/+$/, '').toLowerCase() === right.pathname.replace(/\/+$/, '').toLowerCase();
+    } catch (_) { return false; }
+  }
+  function findPostRoot(main, postUrl) {
+    const articles = Array.from(main.querySelectorAll('[role="article"]')).filter(visible);
+    const matches = articles.filter(root => Array.from(root.querySelectorAll('a[href]'))
+      .filter(anchor => belongsToRoot(anchor, root))
+      .some(anchor => samePostLink(new URL(anchor.getAttribute('href'), window.location.href).href, postUrl)));
+    matches.sort((a, b) => b.querySelectorAll('[role="article"]').length - a.querySelectorAll('[role="article"]').length);
+    return matches[0] || main;
+  }
+  function expandButtons(scope, limit, clicked) {
     let count = 0;
-    const buttons = Array.from(document.querySelectorAll('button,[role="button"]')).filter(visible);
+    const buttons = Array.from(scope.querySelectorAll('button,[role="button"]')).filter(visible);
     for (const button of buttons) {
       if (count >= limit || clicked.has(button)) continue;
       const label = (text(button) + ' ' + (button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).trim();
@@ -183,23 +205,24 @@
     const postUrl = canonicalPostUrl(window.location.href);
     const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
     if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
+    const scope = findPostRoot(main, postUrl);
     const originalY = Number(window.scrollY || 0);
     const maxRounds = Math.min(80, Math.max(1, Number(message && message.maxRounds) || 60));
     const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
     const clicked = new WeakSet();
     let expanded = 0, idleRounds = 0, rounds = 0;
     for (; rounds < maxRounds; rounds += 1) {
-      const before = main.querySelectorAll('[role="article"]').length;
-      const clickedNow = expandButtons(maxClicks - expanded, clicked);
+      const before = scope.querySelectorAll('[role="article"]').length;
+      const clickedNow = expandButtons(scope, maxClicks - expanded, clicked);
       expanded += clickedNow;
       try { window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)); } catch (_) {}
       await sleep(300);
-      const after = main.querySelectorAll('[role="article"]').length;
+      const after = scope.querySelectorAll('[role="article"]').length;
       if (after > before || clickedNow > 0) idleRounds = 0;
       else idleRounds += 1;
       if (idleRounds >= 4 || expanded >= maxClicks) break;
     }
-    const comments = extractComments(main, postUrl);
+    const comments = extractComments(scope, postUrl);
     try { window.scrollTo(0, originalY); } catch (_) {}
     if (!comments.length) return { ok: false, error: 'Chưa nhận diện được bình luận. Chọn “Tất cả bình luận”, mở rộng câu trả lời rồi thử lại. Facebook có thể đã thay đổi giao diện.' };
     return {
