@@ -53,7 +53,7 @@ test('weekly alarm schedules a reminder and marks it due without sending data ex
   handlers.alarm[0]({ name: 'comment-crawl-weekly-report' });
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.ok(state.settings.weeklyDueAt);
-  assert.ok(state.logs.some(entry => /cần mở Side Panel/i.test(entry.message)));
+  assert.ok(state.logs.some(entry => /Mở Side Panel/i.test(entry.message)));
   assert.ok(badges.some(entry => entry.text === '7'));
   assert.ok(titles.some(entry => /đến kỳ tổng hợp/i.test(entry.title)));
   assert.deepEqual(notifications, []);
