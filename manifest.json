@@ -20,5 +20,8 @@
     "https://m.facebook.com/*",
     "https://meta.ai/*",
     "https://www.meta.ai/*"
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
