@@ -27,5 +27,6 @@ const Core=require('../core.js');
 assert.equal(Core.valid(Core.defaults()),true);
 assert.equal(Core.normalizeHeader('Tên Facebook'),'tenfacebook');
 assert.equal(typeof Core.filterComments,'function');
+assert.equal(typeof Core.migrateState,'function');
 assert.equal(typeof Core.reconcileComments,'function');
 console.log('Validation passed: Manifest V3, JavaScript syntax, local state, weekly reminder, roster header normalization and Meta AI Web UI review.');
