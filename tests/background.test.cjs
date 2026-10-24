@@ -58,3 +58,37 @@ test('weekly alarm schedules a reminder and marks it due without sending data ex
   assert.ok(titles.some(entry => /đến kỳ tổng hợp/i.test(entry.title)));
   assert.deepEqual(notifications, []);
 });
+
+
+
+test('toolbar action opens Chrome Side Panel instead of creating a dashboard tab', async () => {
+  const handlers = { installed: [], startup: [], alarm: [], action: [] };
+  const opened = [], createdTabs = [];
+  const chrome = {
+    runtime: {
+      onInstalled: { addListener(fn) { handlers.installed.push(fn); } },
+      onStartup: { addListener(fn) { handlers.startup.push(fn); } },
+      getURL(pathname) { return 'chrome-extension://test/' + pathname; }
+    },
+    sidePanel: { open: async options => { opened.push(options); } },
+    action: {
+      onClicked: { addListener(fn) { handlers.action.push(fn); } },
+      setBadgeText: async () => {},
+      setBadgeBackgroundColor: async () => {},
+      setTitle: async () => {}
+    },
+    alarms: {
+      get: async () => ({ name: 'comment-crawl-weekly-report' }),
+      create: () => {},
+      onAlarm: { addListener(fn) { handlers.alarm.push(fn); } }
+    },
+    storage: { local: { get: async () => ({}), set: async () => {} } },
+    tabs: { create: async value => { createdTabs.push(value); } }
+  };
+  const context = { chrome, Date, String, Number, Array, Math, Promise };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8'), context);
+  await handlers.action[0]({ id: 99, windowId: 7 });
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].windowId, 7);
+  assert.equal(createdTabs.length, 0);
+});
