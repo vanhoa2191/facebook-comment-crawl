@@ -10,6 +10,9 @@ assert.ok(fs.existsSync(manifest.options_page));
 assert.ok(manifest.permissions.includes('storage'));
 assert.ok(manifest.permissions.includes('alarms'));
 assert.ok(manifest.permissions.includes('unlimitedStorage'));
+assert.ok(manifest.permissions.includes('sidePanel'));
+assert.equal(manifest.side_panel.default_path,'dashboard.html?sidepanel=1');
+assert.equal(manifest.version,'1.1.0');
 assert.equal(manifest.background.service_worker,'background.js');
 assert.ok(fs.existsSync(manifest.background.service_worker));
 for(const file of ['core.js','app.js','spreadsheet.js','facebook-bridge.js','meta-ai-bridge.js','styles.css','background.js']) {
@@ -23,6 +26,11 @@ assert.ok(fs.readFileSync('app.js','utf8').includes('COMMENT_CRAWL_META_PROMPT')
 assert.ok(fs.readFileSync('app.js','utf8').includes('reviewPrompts'));
 for (const symbol of ['function button(', 'function commentTable(', 'function renderCommentResults(', 'function renderPeople(', 'function renderReports(', 'function renderActivityChart(', 'function matchComment(', 'function editPerson(', 'function reconcileCommentLinks(', 'function postRequestKey(', 'function applyCommentFilters(', 'function periodSelector(', 'async function getFacebookTab(', 'async function waitForTabComplete(', 'async function collectFromFacebookTab(', 'function upsertComments(', 'function manualMetaFallback(', 'async function restoreJson(']) assert.ok(fs.readFileSync('app.js','utf8').includes(symbol), 'missing UI function: ' + symbol);
 assert.ok(fs.readFileSync('background.js','utf8').includes('comment-crawl-weekly-report'));
+assert.ok(fs.readFileSync('background.js','utf8').includes('chrome.sidePanel.open'));
+assert.ok(fs.readFileSync('app.js','utf8').includes('function refreshActiveTabLabel('));
+assert.ok(fs.readFileSync('app.js','utf8').includes('function withCollectionTimeout('));
+assert.ok(fs.readFileSync('facebook-bridge.js','utf8').includes('function collectActivePage('));
+assert.ok(fs.readFileSync('facebook-bridge.js','utf8').includes('COMMENT_CRAWL_PROGRESS'));
 const Core=require('../core.js');
 assert.equal(Core.valid(Core.defaults()),true);
 assert.equal(Core.normalizeHeader('Tên Facebook'),'tenfacebook');
