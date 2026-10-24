@@ -45,10 +45,10 @@ test('weekly alarm schedules a reminder and marks it due without sending data ex
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8'), context);
 
   await handlers.installed[0]();
-  assert.deepEqual(created, [{
-    name: 'comment-crawl-weekly-report',
-    options: { delayInMinutes: 10080, periodInMinutes: 10080 }
-  }]);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].name, 'comment-crawl-weekly-report');
+  assert.equal(created[0].options.delayInMinutes, 10080);
+  assert.equal(created[0].options.periodInMinutes, 10080);
 
   handlers.alarm[0]({ name: 'comment-crawl-weekly-report' });
   await new Promise(resolve => setTimeout(resolve, 0));
