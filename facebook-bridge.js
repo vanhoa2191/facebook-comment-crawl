@@ -190,7 +190,29 @@
       .filter(anchor => belongsToRoot(anchor, root))
       .some(anchor => samePostLink(new URL(anchor.getAttribute('href'), window.location.href).href, postUrl)));
     matches.sort((a, b) => b.querySelectorAll('[role="article"]').length - a.querySelectorAll('[role="article"]').length);
-    return matches[0] || null;
+    if (matches.length) return matches[0];
+    let target;
+    try { target = new URL(postUrl); } catch (_) { return null; }
+    const shareRoute = /\/share\/(?:p|v|r)\/[^/]+/i.test(target.pathname);
+    if (shareRoute) {
+      const candidates = articles.filter(root => {
+        const label = ((root.getAttribute && root.getAttribute('aria-label')) || '') + ' ' + ((root.getAttribute && root.getAttribute('data-testid')) || '');
+        return /feed post|post by|bài viết của|post-container|fbfeed_story/i.test(label) &&
+          Array.from(root.querySelectorAll('a[href]')).some(anchor => belongsToRoot(anchor, root) &&
+            /\/(posts|permalink|story\.php|videos?|reel|photos?)(\/|$)/i.test(new URL(anchor.getAttribute('href'), window.location.href).pathname));
+      });
+      if (candidates.length === 1) return candidates[0];
+    }
+    return null;
+  }
+  async function waitForPostRoot(main, postUrl, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const root = findPostRoot(main, postUrl);
+      if (root) return root;
+      await sleep(400);
+    }
+    return findPostRoot(main, postUrl);
   }
   function expandButtons(scope, limit, clicked) {
     let count = 0;
@@ -198,7 +220,7 @@
     for (const button of buttons) {
       if (count >= limit || clicked.has(button)) continue;
       const label = (text(button) + ' ' + (button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).trim();
-      if (!/(more comments|previous comments|more repl(?:y|ies)|all repl(?:y|ies)|xem thêm bình luận|xem bình luận trước|xem thêm câu trả lời|xem tất cả câu trả lời|tải thêm bình luận|hiển thị thêm bình luận|xem thêm phản hồi)/i.test(label)) continue;
+      if (!/(more comments|previous comments|view (?:all|more|previous) comments|see (?:all|more) comments|more repl(?:y|ies)|all repl(?:y|ies)|view (?:all )?repl(?:y|ies)|see (?:all )?repl(?:y|ies)|view \d+ repl(?:y|ies)|see \d+ more repl(?:y|ies)|xem thêm bình luận|xem bình luận trước|xem tất cả bình luận|xem thêm câu trả lời|xem tất cả câu trả lời|tải thêm bình luận|hiển thị thêm bình luận|xem thêm phản hồi)/i.test(label)) continue;
       clicked.add(button);
       try { button.click(); count += 1; } catch (_) {}
     }
@@ -209,10 +231,10 @@
     const postUrl = canonicalPostUrl(window.location.href);
     const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
     if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
-    const scope = findPostRoot(main, postUrl);
-    if (!scope) return { ok: false, error: 'Không xác định được vùng của đúng bài viết. Hãy mở permalink đầy đủ của bài viết rồi thử lại để tránh thu thập nhầm bài khác.' };
+    const scope = await waitForPostRoot(main, postUrl, 15000);
+    if (!scope) return { ok: false, error: 'Facebook đã mở trang nhưng extension không tìm thấy khung bài viết sau 15 giây. Hãy chọn Mở bài viết từ dashboard, chờ nội dung hiện ra, chọn Tất cả bình luận rồi thử lại. URL hiện tại: ' + window.location.href.slice(0, 250) };
     const originalY = Number(window.scrollY || 0);
-    const maxRounds = Math.min(80, Math.max(1, Number(message && message.maxRounds) || 60));
+    const maxRounds = Math.min(80, Math.max(20, Number(message && message.maxRounds) || 60));
     const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
     const clicked = new WeakSet();
     let expanded = 0, idleRounds = 0, rounds = 0;
@@ -221,11 +243,11 @@
       const clickedNow = expandButtons(scope, maxClicks - expanded, clicked);
       expanded += clickedNow;
       try { window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)); } catch (_) {}
-      await sleep(300);
+      await sleep(500);
       const after = scope.querySelectorAll('[role="article"]').length;
       if (after > before || clickedNow > 0) idleRounds = 0;
       else idleRounds += 1;
-      if (idleRounds >= 4 || expanded >= maxClicks) break;
+      if ((idleRounds >= 10 && rounds >= 9) || expanded >= maxClicks) break;
     }
     const comments = extractComments(scope, postUrl);
     try { window.scrollTo(0, originalY); } catch (_) {}
