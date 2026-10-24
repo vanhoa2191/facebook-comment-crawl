@@ -15,14 +15,14 @@ function loadBridge(url) {
   return listeners[0];
 }
 
-test('Facebook bridge rejects a non-post URL before collection', async () => {
+test('Facebook bridge returns an actionable error when the current Facebook page has no DOM root', async () => {
   const listener = loadBridge('https://www.facebook.com/');
   const result = await new Promise(resolve => {
     const keepOpen = listener({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve);
     assert.equal(keepOpen, true);
   });
   assert.equal(result.ok, false);
-  assert.match(result.error, /bài viết Facebook/);
+  assert.match(result.error, /vùng nội dung trang Facebook/);
 });
 
 test('Facebook bridge ignores unrelated message types', () => {
@@ -160,7 +160,7 @@ test('Facebook share permalink is accepted as a post URL for redirect/loading', 
     assert.equal(listener({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve), true);
   });
   assert.equal(result.ok, false);
-  assert.match(result.error, /vùng nội dung bài viết/);
+  assert.match(result.error, /vùng nội dung trang Facebook/);
   assert.doesNotMatch(result.error, /mở bài viết Facebook ở trang riêng/);
 });
 
@@ -220,4 +220,61 @@ test('Facebook bridge retains comments seen before the DOM virtualizes them away
   assert.equal(result.comments.length, 2);
   assert.ok(result.comments.some(c => c.text === 'First comment visible near the top.'));
   assert.ok(result.comments.some(c => c.text === 'Second comment loaded at the bottom.'));
+});
+
+
+test('Side-panel collection scans comments from multiple posts on the active Facebook feed', async () => {
+  const postUrlA = 'https://www.facebook.com/sample.page/posts/810';
+  const postUrlB = 'https://www.facebook.com/sample.page/posts/811';
+  const postA = new MockElement('div', { role: 'article', 'aria-label': 'Post by Sample Page', 'data-testid': 'post-container' });
+  postA.append(
+    new MockElement('a', { href: postUrlA }, 'Post A permalink'),
+    new MockElement('div', { role: 'article', id: 'comment-8101' }).append(
+      new MockElement('a', { href: 'https://www.facebook.com/anna' }, 'Anna'),
+      new MockElement('div', { dir: 'auto' }, 'Comment on first feed post.'),
+      new MockElement('a', { href: postUrlA + '?comment_id=8101' }, 'Comment permalink'),
+      new MockElement('button', {}, 'Reply')
+    )
+  );
+  const postB = new MockElement('div', { role: 'article', 'aria-label': 'Post by Sample Page', 'data-testid': 'post-container' });
+  postB.append(
+    new MockElement('a', { href: postUrlB }, 'Post B permalink'),
+    new MockElement('div', { role: 'article', id: 'comment-8111' }).append(
+      new MockElement('a', { href: 'https://www.facebook.com/bob' }, 'Bob'),
+      new MockElement('div', { dir: 'auto' }, 'Comment on second feed post.'),
+      new MockElement('a', { href: postUrlB + '?comment_id=8111' }, 'Comment permalink'),
+      new MockElement('button', {}, 'Reply')
+    )
+  );
+  const main = new MockElement('div', { role: 'main' }).append(postA, postB);
+  const document = {
+    title: 'Sample Page feed',
+    body: main,
+    documentElement: { scrollHeight: 200, clientHeight: 800, scrollTop: 0 },
+    scrollingElement: null,
+    querySelector(selector) { return selector === '[role="main"]' || selector === 'main' ? main : null; },
+    querySelectorAll(selector) { return main.querySelectorAll(selector); }
+  };
+  const window = {
+    __commentCrawlBridge: false,
+    location: { href: 'https://www.facebook.com/sample.page' },
+    scrollY: 0, innerHeight: 800,
+    scrollTo(x, y) { this.scrollY = y; document.documentElement.scrollTop = y; }
+  };
+  const listeners = [];
+  const context = {
+    window, document, URL, Date, Promise, Array, String, RegExp, Number, Object, Math, WeakMap, WeakSet, Error,
+    setTimeout(fn) { fn(); return 1; }, clearTimeout() {},
+    getComputedStyle() { return { display: 'block', visibility: 'visible', overflowY: 'visible' }; },
+    chrome: { runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } } }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'facebook-bridge.js'), 'utf8'), context);
+  const result = await new Promise(resolve => {
+    assert.equal(listeners[0]({ type: 'COMMENT_CRAWL_COLLECT', mode: 'active-page' }, {}, resolve), true);
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.postsScanned, 2);
+  assert.equal(result.comments.length, 2);
+  assert.ok(result.comments.some(c => c.postUrl === postUrlA && c.text === 'Comment on first feed post.'));
+  assert.ok(result.comments.some(c => c.postUrl === postUrlB && c.text === 'Comment on second feed post.'));
 });
