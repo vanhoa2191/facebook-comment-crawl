@@ -24,6 +24,6 @@ test('XLSX export creates a workbook ZIP with multiple sheets', async () => {
 test('XLSX export strips XML-invalid control characters', async () => {
   const blob = Sheet.create([{ name: 'Control', rows: [['before\u0000after']] }]);
   const raw = new TextDecoder().decode(new Uint8Array(await blob.arrayBuffer()));
-  assert.doesNotMatch(raw, /\u0000/);
+  assert.doesNotMatch(raw, /before\u0000after/);
   assert.match(raw, /beforeafter/);
 });
