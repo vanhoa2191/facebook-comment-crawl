@@ -231,30 +231,70 @@
     const postUrl = canonicalPostUrl(window.location.href);
     const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
     if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
-    const scope = await waitForPostRoot(main, postUrl, 15000);
-    if (!scope) return { ok: false, error: 'Facebook đã mở trang nhưng extension không tìm thấy khung bài viết sau 15 giây. Hãy chọn Mở bài viết từ dashboard, chờ nội dung hiện ra, chọn Tất cả bình luận rồi thử lại. URL hiện tại: ' + window.location.href.slice(0, 250) };
+    let scope = await waitForPostRoot(main, postUrl, 15000);
+    if (!scope) return { ok: false, error: 'Facebook đã mở trang nhưng extension không tìm thấy khung bài viết sau 15 giây. Hãy mở bài viết từ dashboard, chờ nội dung hiện ra, chọn Tất cả bình luận rồi thử lại. URL hiện tại: ' + window.location.href.slice(0, 250) };
     const originalY = Number(window.scrollY || 0);
     const maxRounds = Math.min(80, Math.max(20, Number(message && message.maxRounds) || 60));
     const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
     const clicked = new WeakSet();
-    let expanded = 0, idleRounds = 0, rounds = 0;
-    for (; rounds < maxRounds; rounds += 1) {
-      const before = scope.querySelectorAll('[role="article"]').length;
-      const clickedNow = expandButtons(scope, maxClicks - expanded, clicked);
-      expanded += clickedNow;
-      try { window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)); } catch (_) {}
-      await sleep(500);
-      const after = scope.querySelectorAll('[role="article"]').length;
-      if (after > before || clickedNow > 0) idleRounds = 0;
-      else idleRounds += 1;
-      if ((idleRounds >= 10 && rounds >= 9) || expanded >= maxClicks) break;
+    const collected = new Map();
+    function rememberComments(root) {
+      if (!root || !root.isConnected) return;
+      for (const comment of extractComments(root, postUrl)) {
+        const previous = collected.get(comment.sourceKey);
+        if (!previous) {
+          collected.set(comment.sourceKey, comment);
+          continue;
+        }
+        collected.set(comment.sourceKey, {
+          ...previous, ...comment,
+          parentCommentId: comment.parentCommentId || previous.parentCommentId,
+          depth: Math.max(Number(previous.depth) || 0, Number(comment.depth) || 0),
+          permalink: comment.permalink || previous.permalink,
+          commentedAt: comment.commentedAt || previous.commentedAt,
+          commentedAtLabel: comment.commentedAtLabel || previous.commentedAtLabel,
+          authorProfileUrl: comment.authorProfileUrl || previous.authorProfileUrl,
+          authorProfileId: comment.authorProfileId || previous.authorProfileId
+        });
+      }
     }
-    const comments = extractComments(scope, postUrl);
+    try { window.scrollTo(0, 0); } catch (_) {}
+    await sleep(400);
+    rememberComments(scope);
+    let expanded = 0, idleRounds = 0, rounds = 0, reachedBottom = false;
+    for (; rounds < maxRounds; rounds += 1) {
+      const refreshedBefore = findPostRoot(main, postUrl);
+      if (refreshedBefore) scope = refreshedBefore;
+      const before = scope.querySelectorAll('[role="article"]').length;
+      const clickedNow = expandButtons(scope, Math.max(0, maxClicks - expanded), clicked);
+      expanded += clickedNow;
+      const currentY = Number(window.scrollY || 0);
+      const maxScroll = Math.max(
+        Number(document.documentElement && document.documentElement.scrollHeight) || 0,
+        Number(document.body && document.body.scrollHeight) || 0
+      );
+      const step = Math.max(400, (Number(window.innerHeight) || 800) * 0.75);
+      const nextY = Math.min(maxScroll, currentY + step);
+      const moved = nextY > currentY + 2;
+      try { window.scrollTo(0, nextY); } catch (_) {}
+      await sleep(500);
+      const refreshedAfter = findPostRoot(main, postUrl);
+      if (refreshedAfter) scope = refreshedAfter;
+      const after = scope.querySelectorAll('[role="article"]').length;
+      rememberComments(scope);
+      reachedBottom = Number(window.scrollY || 0) >= maxScroll - 3;
+      if (after > before || clickedNow > 0 || moved) idleRounds = 0;
+      else idleRounds += 1;
+      if (idleRounds >= 10 && rounds >= 9) break;
+      if (reachedBottom && idleRounds >= 6 && rounds >= 9) break;
+    }
+    rememberComments(scope);
     try { window.scrollTo(0, originalY); } catch (_) {}
-    if (!comments.length) return { ok: false, error: 'Chưa nhận diện được bình luận. Chọn “Tất cả bình luận”, mở rộng câu trả lời rồi thử lại. Facebook có thể đã thay đổi giao diện.' };
+    const comments = Array.from(collected.values());
+    if (!comments.length) return { ok: false, error: 'Đã mở đúng trang nhưng chưa nhận diện được bình luận. Hãy chờ bài viết tải xong, chọn “Tất cả bình luận”, mở rộng câu trả lời rồi thử lại. Nếu vẫn lỗi, tải lại tab Facebook và chạy thu thập lần nữa.' };
     return {
       ok: true, postUrl, comments, expanded, rounds: rounds + 1,
-      note: 'Chỉ thu thập nội dung Facebook đang hiển thị cho tài khoản này. Bình luận ẩn, đã xóa hoặc ngoài quyền xem sẽ không được truy cập.'
+      note: 'Đã gộp các bình luận quan sát được qua nhiều lần cuộn để giảm mất dữ liệu khi Facebook tải thêm hoặc thay thế nội dung trong DOM. Bình luận ẩn, đã xóa hoặc ngoài quyền xem sẽ không được truy cập.'
     };
   }
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
