@@ -11,7 +11,7 @@ Chrome Extension (Manifest V3) for collecting comments/replies rendered on a sel
 - Uses Meta AI through its visible website UI only; no Meta AI API. Before sending, a review dialog displays every exact prompt. The user must open each prompt, check the approval box and click send. Editing any prompt resets approval.
 - If automatic Meta AI sending or response reading fails, a manual fallback lets the user select/copy the already-reviewed prompt and paste the response. The extension does not blindly retry a send.
 - A weekly alarm reminds the user to open the dashboard and run a report. It does not send comment data automatically.
-- Weekly reports process up to 30 profiles per run in resumable batches. Each Meta AI prompt covers up to three profiles and samples up to six recent comments per period. Keep running the report until the dashboard confirms the full roster cycle is complete.
+- Weekly reports process up to 30 profiles per run in resumable batches; if one Meta AI request fails, the next run resumes after the last completed batch instead of resending all earlier successful batches. Each Meta AI prompt covers up to three profiles and samples up to six recent comments per period. Keep running the report until the dashboard confirms the full roster cycle is complete.
 - Reports compare two periods, cite source comment IDs/links, mark missing timestamps, and instruct Meta AI to treat comment text as untrusted data.
 
 ## Install for testing
