@@ -8,7 +8,7 @@ const path = require('node:path');
 function loadBridge(url) {
   const listeners = [];
   const window = { __commentCrawlBridge: false, location: { href: url } };
-  const document = {};
+  const document = { querySelector() { return null; }, body: null };
   const chrome = { runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } } };
   const context = { window, document, chrome, URL, Date, Promise, Array, String, RegExp, Number, Object, Math, WeakMap, WeakSet, Error, setTimeout, clearTimeout };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'facebook-bridge.js'), 'utf8'), context);
@@ -151,4 +151,15 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
   assert.equal(result.comments[1].text, 'A nested reply to Anna.');
   assert.equal(result.comments[1].depth, 1);
   assert.equal(result.comments[1].parentCommentId, result.comments[0].sourceKey);
+});
+
+
+test('Facebook share permalink is accepted as a post URL for redirect/loading', async () => {
+  const listener = loadBridge('https://www.facebook.com/share/p/abc123/');
+  const result = await new Promise(resolve => {
+    assert.equal(listener({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve), true);
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /vùng nội dung bài viết/);
+  assert.doesNotMatch(result.error, /mở bài viết Facebook ở trang riêng/);
 });
