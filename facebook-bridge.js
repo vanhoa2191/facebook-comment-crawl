@@ -226,76 +226,199 @@
     }
     return count;
   }
-  async function collect(message) {
-    if (!isPostUrl(window.location.href)) return { ok: false, error: 'Hãy mở bài viết Facebook ở trang riêng/permalink trước.' };
-    const postUrl = canonicalPostUrl(window.location.href);
-    const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
-    if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
-    let scope = await waitForPostRoot(main, postUrl, 15000);
-    if (!scope) return { ok: false, error: 'Facebook đã mở trang nhưng extension không tìm thấy khung bài viết sau 15 giây. Hãy mở bài viết từ dashboard, chờ nội dung hiện ra, chọn Tất cả bình luận rồi thử lại. URL hiện tại: ' + window.location.href.slice(0, 250) };
+  function reportProgress(message, done) {
+    try {
+      const pending = chrome.runtime.sendMessage({ type: 'COMMENT_CRAWL_PROGRESS', message, done: !!done });
+      if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+    } catch (_) {}
+  }
+  function postPermalinkForRoot(root) {
+    const anchors = Array.from(root.querySelectorAll('a[href]')).filter(anchor => belongsToRoot(anchor, root));
+    for (const anchor of anchors) {
+      let url;
+      try { url = new URL(anchor.getAttribute('href'), window.location.href); } catch (_) { continue; }
+      if (!safeFacebookUrl(url.href)) continue;
+      if (url.searchParams.has('comment_id') || url.searchParams.has('reply_comment_id')) continue;
+      const looksLikePost = /\/(posts|permalink|videos?|reel|photos?|watch)(\/|$)/i.test(url.pathname) ||
+        (/\/(story\.php|permalink\.php)$/i.test(url.pathname) && (url.searchParams.has('story_fbid') || url.searchParams.has('fbid')));
+      if (looksLikePost) return canonicalPostUrl(url.href);
+    }
+    return '';
+  }
+  function discoverPostRoots(main) {
+    const articles = Array.from(main.querySelectorAll('[role="article"]')).filter(visible);
+    const byUrl = new Map();
+    for (const root of articles) {
+      const postUrl = postPermalinkForRoot(root);
+      if (!postUrl) continue;
+      const previous = byUrl.get(postUrl);
+      const size = root.querySelectorAll('[role="article"]').length;
+      if (!previous || size > previous.size) byUrl.set(postUrl, { root, size });
+    }
+    return Array.from(byUrl, ([postUrl, item]) => ({ postUrl, root: item.root }));
+  }
+  function findScrollContainer(scope) {
+    let node = scope;
+    while (node && node !== document.body && node !== document.documentElement) {
+      try {
+        const style = window.getComputedStyle(node);
+        if (node.scrollHeight > node.clientHeight + 80 && /(auto|scroll|overlay)/i.test(style.overflowY || '')) return node;
+      } catch (_) {}
+      node = node.parentElement;
+    }
+    return document.scrollingElement || document.documentElement || document.body;
+  }
+  function scrollMetrics(scope) {
+    const container = findScrollContainer(scope);
+    const documentScroller = !container || container === document.scrollingElement || container === document.documentElement || container === document.body;
+    const current = documentScroller ? Math.max(Number(window.scrollY || 0), Number(container && container.scrollTop || 0)) : Number(container.scrollTop || 0);
+    const total = documentScroller
+      ? Math.max(Number(document.documentElement && document.documentElement.scrollHeight || 0), Number(document.body && document.body.scrollHeight || 0), Number(container && container.scrollHeight || 0))
+      : Number(container.scrollHeight || 0);
+    const viewport = documentScroller ? Number(window.innerHeight || container && container.clientHeight || 800) : Number(container.clientHeight || 800);
+    return { container, documentScroller, current, max: Math.max(0, total - viewport), step: Math.max(350, viewport * 0.72) };
+  }
+  function scrollDown(scope) {
+    const metrics = scrollMetrics(scope);
+    if (metrics.current >= metrics.max - 3) return { moved: false, bottom: true };
+    const next = Math.min(metrics.max, metrics.current + metrics.step);
+    try {
+      if (metrics.documentScroller) window.scrollTo(0, next);
+      else metrics.container.scrollTop = next;
+    } catch (_) {}
+    return { moved: next > metrics.current + 2, bottom: next >= metrics.max - 3 };
+  }
+  function mergeCollected(collected, comment) {
+    const previous = collected.get(comment.sourceKey);
+    if (!previous) {
+      collected.set(comment.sourceKey, comment);
+      return;
+    }
+    collected.set(comment.sourceKey, {
+      ...previous, ...comment,
+      parentCommentId: comment.parentCommentId || previous.parentCommentId,
+      depth: Math.max(Number(previous.depth) || 0, Number(comment.depth) || 0),
+      permalink: comment.permalink || previous.permalink,
+      commentedAt: comment.commentedAt || previous.commentedAt,
+      commentedAtLabel: comment.commentedAtLabel || previous.commentedAtLabel,
+      authorProfileUrl: comment.authorProfileUrl || previous.authorProfileUrl,
+      authorProfileId: comment.authorProfileId || previous.authorProfileId
+    });
+  }
+  async function collectSinglePost(main, postUrl, message) {
+    reportProgress('Đang tìm khung bài viết...', false);
+    const scope = await waitForPostRoot(main, postUrl, 8000);
+    if (!scope) return { ok: false, error: 'Không tìm thấy khung bài viết sau 8 giây. Hãy chờ bài viết hiện đầy đủ, chọn “Tất cả bình luận” rồi thử lại.' };
     const originalY = Number(window.scrollY || 0);
-    const maxRounds = Math.min(80, Math.max(20, Number(message && message.maxRounds) || 60));
-    const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
-    const clicked = new WeakSet();
-    const collected = new Map();
-    function rememberComments(root) {
-      if (!root || !root.isConnected) return;
-      for (const comment of extractComments(root, postUrl)) {
-        const previous = collected.get(comment.sourceKey);
-        if (!previous) {
-          collected.set(comment.sourceKey, comment);
-          continue;
-        }
-        collected.set(comment.sourceKey, {
-          ...previous, ...comment,
-          parentCommentId: comment.parentCommentId || previous.parentCommentId,
-          depth: Math.max(Number(previous.depth) || 0, Number(comment.depth) || 0),
-          permalink: comment.permalink || previous.permalink,
-          commentedAt: comment.commentedAt || previous.commentedAt,
-          commentedAtLabel: comment.commentedAtLabel || previous.commentedAtLabel,
-          authorProfileUrl: comment.authorProfileUrl || previous.authorProfileUrl,
-          authorProfileId: comment.authorProfileId || previous.authorProfileId
-        });
-      }
-    }
+    const maxRounds = Math.min(60, Math.max(8, Number(message && message.maxRounds) || 28));
+    const maxClicks = Math.min(180, Math.max(1, Number(message && message.maxClicks) || 100));
+    const clicked = new WeakSet(), collected = new Map();
+    const remember = () => {
+      const fresh = findPostRoot(main, postUrl);
+      const root = fresh || scope;
+      for (const comment of extractComments(root, postUrl)) mergeCollected(collected, comment);
+      return root;
+    };
     try { window.scrollTo(0, 0); } catch (_) {}
-    await sleep(400);
-    rememberComments(scope);
-    let expanded = 0, idleRounds = 0, rounds = 0, reachedBottom = false;
+    await sleep(250);
+    let root = remember(), expanded = 0, idleRounds = 0, rounds = 0;
+    reportProgress('Đã tìm thấy bài viết; đang đọc bình luận...', false);
     for (; rounds < maxRounds; rounds += 1) {
-      const refreshedBefore = findPostRoot(main, postUrl);
-      if (refreshedBefore) scope = refreshedBefore;
-      const before = scope.querySelectorAll('[role="article"]').length;
-      const clickedNow = expandButtons(scope, Math.max(0, maxClicks - expanded), clicked);
+      root = remember() || root;
+      const before = root.querySelectorAll('[role="article"]').length;
+      const clickedNow = expandButtons(root, Math.max(0, maxClicks - expanded), clicked);
       expanded += clickedNow;
-      const currentY = Number(window.scrollY || 0);
-      const maxScroll = Math.max(
-        Number(document.documentElement && document.documentElement.scrollHeight) || 0,
-        Number(document.body && document.body.scrollHeight) || 0
-      );
-      const step = Math.max(400, (Number(window.innerHeight) || 800) * 0.75);
-      const nextY = Math.min(maxScroll, currentY + step);
-      const moved = nextY > currentY + 2;
-      try { window.scrollTo(0, nextY); } catch (_) {}
-      await sleep(500);
-      const refreshedAfter = findPostRoot(main, postUrl);
-      if (refreshedAfter) scope = refreshedAfter;
-      const after = scope.querySelectorAll('[role="article"]').length;
-      rememberComments(scope);
-      reachedBottom = Number(window.scrollY || 0) >= maxScroll - 3;
-      if (after > before || clickedNow > 0 || moved) idleRounds = 0;
+      const scrolled = scrollDown(root);
+      await sleep(450);
+      root = remember() || root;
+      const after = root.querySelectorAll('[role="article"]').length;
+      if (after > before || clickedNow > 0 || scrolled.moved) idleRounds = 0;
       else idleRounds += 1;
-      if (idleRounds >= 10 && rounds >= 9) break;
-      if (reachedBottom && idleRounds >= 6 && rounds >= 9) break;
+      if (rounds % 3 === 0) reportProgress('Đang thu thập bài viết: lượt ' + (rounds + 1) + '/' + maxRounds + '; đã nhận ' + collected.size + ' bình luận.', false);
+      if (rounds >= 5 && idleRounds >= 5) break;
+      if (scrolled.bottom && rounds >= 5 && idleRounds >= 3) break;
     }
-    rememberComments(scope);
+    remember();
     try { window.scrollTo(0, originalY); } catch (_) {}
     const comments = Array.from(collected.values());
-    if (!comments.length) return { ok: false, error: 'Đã mở đúng trang nhưng chưa nhận diện được bình luận. Hãy chờ bài viết tải xong, chọn “Tất cả bình luận”, mở rộng câu trả lời rồi thử lại. Nếu vẫn lỗi, tải lại tab Facebook và chạy thu thập lần nữa.' };
+    if (!comments.length) return { ok: false, error: 'Đã mở trang bài viết nhưng chưa nhận diện được bình luận. Mở rộng bình luận trên Facebook rồi thử lại.' };
+    return { ok: true, postUrl, comments, postsScanned: 1, expanded, rounds: rounds + 1, note: 'Đã tích lũy bình luận qua nhiều lần cuộn.' };
+  }
+  async function collectActivePage(main, message) {
+    const originalY = Number(window.scrollY || 0);
+    const maxRounds = Math.min(40, Math.max(8, Number(message && message.maxRounds) || 28));
+    const maxClicks = Math.min(160, Math.max(1, Number(message && message.maxClicks) || 100));
+    const clicked = new WeakSet(), collected = new Map(), postUrls = new Set();
+    function rememberAll() {
+      const posts = discoverPostRoots(main);
+      for (const post of posts) {
+        postUrls.add(post.postUrl);
+        for (const comment of extractComments(post.root, post.postUrl)) mergeCollected(collected, comment);
+      }
+      return posts;
+    }
+    reportProgress('Đang tìm các bài viết trên trang Facebook đang mở...', false);
+    await sleep(250);
+    let posts = rememberAll();
+    if (!posts.length) {
+      const deadline = Date.now() + 7000;
+      while (!posts.length && Date.now() < deadline) {
+        await sleep(350);
+        posts = rememberAll();
+      }
+    }
+    if (!posts.length) return { ok: false, error: 'Không tìm thấy bài viết nào trên trang hiện tại. Hãy mở bảng tin, trang cá nhân, trang nhóm hoặc một bài viết Facebook; chờ các bài hiện ra rồi thử lại.' };
+    const scroller = findScrollContainer(main);
+    try {
+      if (scroller === document.scrollingElement || scroller === document.documentElement || scroller === document.body) window.scrollTo(0, 0);
+      else scroller.scrollTop = 0;
+    } catch (_) {}
+    await sleep(250);
+    posts = rememberAll();
+    let expanded = 0, idleRounds = 0, rounds = 0;
+    reportProgress('Đã tìm thấy ' + posts.length + ' bài; đang thu thập bình luận đang hiển thị...', false);
+    for (; rounds < maxRounds; rounds += 1) {
+      const beforePosts = postUrls.size, beforeComments = collected.size;
+      const clickedNow = expandButtons(main, Math.max(0, maxClicks - expanded), clicked);
+      expanded += clickedNow;
+      posts = rememberAll();
+      const scrolled = scrollDown(main);
+      await sleep(450);
+      posts = rememberAll();
+      if (postUrls.size > beforePosts || collected.size > beforeComments || clickedNow > 0 || scrolled.moved) idleRounds = 0;
+      else idleRounds += 1;
+      if (rounds % 2 === 0) reportProgress('Đang cuộn trang Facebook: lượt ' + (rounds + 1) + '/' + maxRounds + '; ' + postUrls.size + ' bài, ' + collected.size + ' bình luận.', false);
+      if (rounds >= 5 && idleRounds >= 4) break;
+      if (scrolled.bottom && rounds >= 4 && idleRounds >= 2) break;
+    }
+    rememberAll();
+    try {
+      const finalScroller = findScrollContainer(main);
+      if (finalScroller === document.scrollingElement || finalScroller === document.documentElement || finalScroller === document.body) window.scrollTo(0, originalY);
+      else finalScroller.scrollTop = originalY;
+    } catch (_) {}
+    const comments = Array.from(collected.values());
+    if (!comments.length) return { ok: false, error: 'Tìm thấy ' + postUrls.size + ' bài nhưng chưa nhận diện được bình luận. Hãy mở rộng bình luận/trả lời trên Facebook rồi thử lại.' };
     return {
-      ok: true, postUrl, comments, expanded, rounds: rounds + 1,
-      note: 'Đã gộp các bình luận quan sát được qua nhiều lần cuộn để giảm mất dữ liệu khi Facebook tải thêm hoặc thay thế nội dung trong DOM. Bình luận ẩn, đã xóa hoặc ngoài quyền xem sẽ không được truy cập.'
+      ok: true, postUrl: window.location.href, comments, postsScanned: postUrls.size,
+      expanded, rounds: rounds + 1,
+      note: 'Chỉ gồm bài viết và bình luận mà Facebook đã tải trên trang hiện tại trong giới hạn cuộn.'
     };
+  }
+  async function collect(message) {
+    if (!safeFacebookUrl(window.location.href)) return { ok: false, error: 'Tab hiện tại không phải trang Facebook được hỗ trợ.' };
+    const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
+    if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung trang Facebook.' };
+    const currentUrl = window.location.href;
+    if (isPostUrl(currentUrl)) {
+      const postUrl = canonicalPostUrl(currentUrl);
+      const result = await collectSinglePost(main, postUrl, message);
+      reportProgress(result.ok ? 'Đã thu thập xong ' + result.comments.length + ' bình luận.' : result.error, true);
+      return result;
+    }
+    const result = await collectActivePage(main, message);
+    reportProgress(result.ok ? 'Đã thu thập xong ' + result.comments.length + ' bình luận từ ' + result.postsScanned + ' bài.' : result.error, true);
+    return result;
   }
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || message.type !== 'COMMENT_CRAWL_COLLECT') return false;
