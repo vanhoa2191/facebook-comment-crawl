@@ -36,6 +36,7 @@ test('analysis prompt compares time windows and forbids sensitive inference', ()
   assert.match(prompt, /Giai đoạn gần đây/);
   assert.match(prompt, /Không suy đoán thuộc tính nhạy cảm/);
   assert.match(prompt, /dữ liệu không đáng tin cậy/);
+  assert.match(prompt, /Mức độ tương tác quan sát được/);
   assert.match(prompt, /new/);
   assert.match(prompt, /chủ đề trước/);
 });
