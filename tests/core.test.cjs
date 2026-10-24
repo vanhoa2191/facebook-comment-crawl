@@ -38,3 +38,11 @@ test('analysis prompt compares time windows and forbids sensitive inference', ()
   assert.match(prompt, /new/);
   assert.match(prompt, /chủ đề trước/);
 });
+
+
+test('a matching name does not override a different known profile URL', () => {
+  const people = [{ id: 'old', name: 'An', profileUrl: 'https://www.facebook.com/oldname', profileId: 'username:oldname' }];
+  const result = C.matchPerson(people, { name: 'An', profileUrl: 'https://www.facebook.com/newname' });
+  assert.equal(result.status, 'unmatched');
+  assert.equal(result.personId, '');
+});
