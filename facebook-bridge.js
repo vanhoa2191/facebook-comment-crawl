@@ -186,7 +186,7 @@
       .filter(anchor => belongsToRoot(anchor, root))
       .some(anchor => samePostLink(new URL(anchor.getAttribute('href'), window.location.href).href, postUrl)));
     matches.sort((a, b) => b.querySelectorAll('[role="article"]').length - a.querySelectorAll('[role="article"]').length);
-    return matches[0] || main;
+    return matches[0] || null;
   }
   function expandButtons(scope, limit, clicked) {
     let count = 0;
@@ -206,6 +206,7 @@
     const main = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
     if (!main) return { ok: false, error: 'Không tìm thấy vùng nội dung bài viết.' };
     const scope = findPostRoot(main, postUrl);
+    if (!scope) return { ok: false, error: 'Không xác định được vùng của đúng bài viết. Hãy mở permalink đầy đủ của bài viết rồi thử lại để tránh thu thập nhầm bài khác.' };
     const originalY = Number(window.scrollY || 0);
     const maxRounds = Math.min(80, Math.max(1, Number(message && message.maxRounds) || 60));
     const maxClicks = Math.min(250, Math.max(1, Number(message && message.maxClicks) || 180));
