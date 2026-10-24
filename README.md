@@ -18,9 +18,9 @@ Chrome Extension (Manifest V3) for collecting comments/replies rendered on a sel
 1. Open \`chrome://extensions\` in Chrome.
 2. Enable **Developer mode**.
 3. Select **Load unpacked** and choose this repository folder.
-4. Open a Facebook post permalink in a tab and sign in normally.
-5. Open the extension dashboard and grant Facebook access when prompted.
-6. Choose **All comments** on Facebook and expand replies. Return to the dashboard and select **Thu thập bình luận và trả lời**.
+4. Open the extension dashboard, paste the exact Facebook post permalink, and click **Mở bài viết**. Sign in to Facebook normally if needed; the extension remembers that tab for collection.
+5. On Facebook, choose **All comments** and expand replies. Return to the dashboard and grant Facebook access when prompted.
+6. Select **Thu thập bình luận và trả lời** in the dashboard.
 7. Import your roster under **Danh sách đối chiếu**. Review ambiguous matches rather than assuming a same-name match is correct.
 8. Under **Dashboard & báo cáo**, select **Tổng hợp ngay** or run an individual profile report. Inspect every prompt in the review dialog before approving the transfer to Meta AI Web.
 
