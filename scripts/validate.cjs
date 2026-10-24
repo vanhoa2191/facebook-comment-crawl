@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('node:fs');
+const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const manifest=JSON.parse(fs.readFileSync('manifest.json','utf8'));
 const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
@@ -10,9 +11,17 @@ assert.ok(manifest.permissions.includes('storage'));
 assert.ok(manifest.permissions.includes('alarms'));
 assert.equal(manifest.background.service_worker,'background.js');
 assert.ok(fs.existsSync(manifest.background.service_worker));
-for(const file of ['core.js','app.js','spreadsheet.js','facebook-bridge.js','meta-ai-bridge.js','styles.css','background.js'])assert.ok(fs.statSync(file).size>0,file);
+for(const file of ['core.js','app.js','spreadsheet.js','facebook-bridge.js','meta-ai-bridge.js','styles.css','background.js']) {
+  assert.ok(fs.statSync(file).size>0,file);
+  if(file.endsWith('.js')) new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
+}
+assert.ok(fs.readFileSync('dashboard.html','utf8').includes('id="app"'));
+assert.ok(fs.readFileSync('dashboard.html','utf8').includes('src="app.js"'));
 assert.ok(!fs.readFileSync('meta-ai-bridge.js','utf8').includes('fetch('),'Meta AI integration must use the website UI, not an API');
 assert.ok(fs.readFileSync('app.js','utf8').includes('COMMENT_CRAWL_META_PROMPT'));
+assert.ok(fs.readFileSync('app.js','utf8').includes('reviewPrompts'));
+assert.ok(fs.readFileSync('background.js','utf8').includes('comment-crawl-weekly-report'));
 const Core=require('../core.js');
 assert.equal(Core.valid(Core.defaults()),true);
-console.log('Validation passed: Manifest V3, files, local state, weekly reminder and Meta AI Web UI bridge.');
+assert.equal(Core.normalizeHeader('Tên Facebook'),'tenfacebook');
+console.log('Validation passed: Manifest V3, JavaScript syntax, local state, weekly reminder, roster header normalization and Meta AI Web UI review.');
