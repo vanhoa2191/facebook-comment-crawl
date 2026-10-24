@@ -91,6 +91,7 @@ class MockElement {
 
 test('Facebook bridge collects comments and links a nested reply to its parent', async () => {
   const postUrl = 'https://www.facebook.com/sample.page/posts/12345';
+  const openedUrl = postUrl + '?comment_id=999';
   const post = new MockElement('div', { role: 'article', 'aria-label': 'Post by Sample Page', 'data-testid': 'post-container' });
   const mainComment = new MockElement('div', { role: 'article', id: 'comment-101' });
   mainComment.append(
@@ -124,7 +125,7 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
   };
   const window = {
     __commentCrawlBridge: false,
-    location: { href: postUrl },
+    location: { href: openedUrl },
     scrollY: 100,
     scrollTo() {}
   };
@@ -140,6 +141,7 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
     assert.equal(listeners[0]({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve), true);
   });
   assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.postUrl, postUrl);
   assert.equal(result.comments.length, 2);
   assert.equal(result.comments[0].authorName, 'Anna');
   assert.equal(result.comments[0].authorProfileId, 'username:anna');
