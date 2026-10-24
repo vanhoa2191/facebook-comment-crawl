@@ -34,7 +34,7 @@
   function canonicalPostUrl(value) {
     const url = new URL(value, window.location.href);
     url.hash = '';
-    ['__cft__', '__tn__', 'mibextid', 'ref', 'refid', 'paipv', 'rdid', 'locale', 'acontext'].forEach(key => url.searchParams.delete(key));
+    ['__cft__', '__tn__', 'mibextid', 'ref', 'refid', 'paipv', 'rdid', 'locale', 'acontext', 'comment_id', 'reply_comment_id'].forEach(key => url.searchParams.delete(key));
     return url.href.slice(0, 2048);
   }
   function hash(value) {
