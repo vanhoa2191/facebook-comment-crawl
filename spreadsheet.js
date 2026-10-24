@@ -63,4 +63,5 @@ async function readXlsx(file){
  return output;
 }
 
-return {create,readXlsx};});
+function splitText(value,maxLength){const text=String(value==null?"":value),limit=Number.isInteger(maxLength)&&maxLength>0?Math.min(maxLength,32767):30000;const chunks=[];for(let offset=0;offset<text.length;offset+=limit)chunks.push(text.slice(offset,offset+limit));return chunks.length?chunks:[""];}
+return {create,readXlsx,splitText};});
