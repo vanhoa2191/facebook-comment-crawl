@@ -1,5 +1,5 @@
 (function(root,factory){const api=factory();if(typeof module==="object"&&module.exports)module.exports=api;if(root)root.CommentCore=api;})(typeof globalThis!=="undefined"?globalThis:this,function(){"use strict";
-const MAX_COMMENTS=5000;
+const MAX_COMMENTS=10000;
 function defaults(){return {trackedPeople:[],comments:[],reports:[],settings:{weeklyDays:7,lastReportAt:"",weeklyDueAt:"",weeklyCursor:0},logs:[]};}
 function safeUrl(value){try{const u=new URL(value);return u.protocol==="https:"&&!u.port&&["facebook.com","www.facebook.com","web.facebook.com","m.facebook.com"].includes(u.hostname.toLowerCase())&&!u.username&&!u.password;}catch(_){return false;}}
 function postUrl(value){if(!safeUrl(value))return false;try{const u=new URL(value);return /\/(posts|permalink|videos?|reel|photos?|watch)(\/|$)/i.test(u.pathname)||(/\/(story\.php|permalink\.php)$/i.test(u.pathname)&&(u.searchParams.has("story_fbid")||u.searchParams.has("fbid")))||u.searchParams.has("story_fbid")||u.searchParams.has("comment_id")||u.searchParams.has("reply_comment_id");}catch(_){return false;}}
