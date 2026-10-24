@@ -161,3 +161,11 @@ test('legacy state migration preserves valid history and fills new fields', () =
   assert.equal(migrated.reports[0].text, 'Keep me');
   assert.equal(migrated.settings.weeklyCursor, 0);
 });
+
+
+test('weekly report cursor advances only by completed profile batches', () => {
+  assert.equal(C.advanceWeeklyCursor(45, 0, 9), 9);
+  assert.equal(C.advanceWeeklyCursor(45, 30, 3), 33);
+  assert.equal(C.advanceWeeklyCursor(45, 33, 12), 0);
+  assert.equal(C.advanceWeeklyCursor(0, 0, 3), 0);
+});
