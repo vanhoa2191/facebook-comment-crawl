@@ -59,3 +59,10 @@ test('comments without an original timestamp are excluded from time trends', () 
   assert.match(prompt, /known date/);
   assert.doesNotMatch(prompt, /unknown date/);
 });
+
+
+test('Vietnamese roster headers normalize accents and separators', () => {
+  assert.equal(C.normalizeHeader('Tên Facebook'), 'tenfacebook');
+  assert.equal(C.normalizeHeader('Mã đối chiếu'), 'madoichieu');
+  assert.equal(C.normalizeHeader('Profile_URL'), 'profileurl');
+});
