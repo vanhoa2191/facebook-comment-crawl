@@ -1,6 +1,6 @@
 # Facebook Comment Crawl
 
-Chrome Extension (Manifest V3) for collecting comments/replies rendered on a selected Facebook post, matching authors against a roster, retaining a local comment history, and preparing reports through Meta AI Web.
+Chrome Extension (Manifest V3) with a Chrome Side Panel for collecting comments/replies from the active Facebook post or currently loaded feed/group/profile page, matching authors against a roster, retaining a local comment history, and preparing reports through Meta AI Web.
 
 ## Features
 - Best-effort collection scoped to the selected post permalink, including Facebook `/share/p/` and `/share/v/` links. It waits for the post container to hydrate, scrolls in increments, expands visible comment/reply controls and accumulates comments across DOM updates to reduce loss when Facebook virtualizes older comments.
@@ -32,6 +32,7 @@ npm run validate
 \`\`\`
 
 ## Limits and privacy
+- Collection targets the active Facebook tab, not arbitrary non-Facebook websites. On feed/group/profile pages, it collects only post containers and comments that Facebook renders during the bounded scroll pass; it does not crawl the entire account history.
 - Hidden, deleted, inaccessible, or not-yet-rendered comments cannot be collected. Facebook DOM changes may affect extraction; verify the result against the actual post.
 - XLSX import reads the first worksheet; legacy XLS should be saved as XLSX or CSV UTF-8.
 - Trend analysis excludes comments without an original timestamp instead of substituting collection time.
