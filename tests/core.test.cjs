@@ -94,3 +94,18 @@ test('CSV parser auto-detects semicolon and tab delimiters', () => {
     ['An', 'https://www.facebook.com/an']
   ]);
 });
+
+
+test('comment filters combine post, date, text and match status safely', () => {
+  const comments = [
+    { id: 'a', authorName: 'An', text: 'hoa lan', postUrl: 'https://facebook.com/p/posts/1', personId: 'p1', matchStatus: 'matched', commentedAt: '2026-10-23T10:00:00Z', collectedAt: '2026-10-24T00:00:00Z' },
+    { id: 'b', authorName: 'Bình', text: 'hoa hồng', postUrl: 'https://facebook.com/p/posts/1', personId: '', matchStatus: 'unmatched', commentedAt: '2026-10-20T10:00:00Z', collectedAt: '2026-10-24T00:00:00Z' },
+    { id: 'c', authorName: 'Chi', text: 'hoa cúc', postUrl: 'https://facebook.com/p/posts/2', personId: '', matchStatus: 'ambiguous', commentedAt: '2026-10-23T12:00:00Z', collectedAt: '2026-10-24T00:00:00Z' },
+    { id: 'd', authorName: 'Dung', text: 'hoa sen', postUrl: 'https://facebook.com/p/posts/1', personId: '', matchStatus: 'unmatched', commentedAt: '', collectedAt: '2026-10-24T00:00:00Z' }
+  ];
+  const people = [{ id: 'p1', name: 'An', rosterId: 'A-1' }];
+  assert.deepEqual(C.filterComments(comments, { postUrl: 'https://facebook.com/p/posts/1', dateFrom: '2026-10-22', match: 'matched' }, people).map(c => c.id), ['a']);
+  assert.deepEqual(C.filterComments(comments, { match: 'unmatched' }, people).map(c => c.id), ['d', 'b']);
+  assert.deepEqual(C.filterComments(comments, { match: 'ambiguous', query: 'chi' }, people).map(c => c.id), ['c']);
+  assert.deepEqual(C.filterComments(comments, { dateFrom: '2026-10-22' }, people).map(c => c.id), ['c', 'a']);
+});
