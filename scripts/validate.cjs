@@ -9,6 +9,7 @@ assert.equal(manifest.version,pkg.version);
 assert.ok(fs.existsSync(manifest.options_page));
 assert.ok(manifest.permissions.includes('storage'));
 assert.ok(manifest.permissions.includes('alarms'));
+assert.ok(manifest.permissions.includes('unlimitedStorage'));
 assert.equal(manifest.background.service_worker,'background.js');
 assert.ok(fs.existsSync(manifest.background.service_worker));
 for(const file of ['core.js','app.js','spreadsheet.js','facebook-bridge.js','meta-ai-bridge.js','styles.css','background.js']) {
