@@ -64,11 +64,15 @@
         /^\/pages\/[^/]+\/[^/]+/i.test(path) ||
         (/^\/[^/]+\/?$/i.test(path) && !/^(groups|posts|photos?|videos?|watch|reel|events|marketplace|stories|search|messages|notifications|friends|settings)$/i.test(path.slice(1)));
       if (!looksLikeProfile) continue;
-      const match = path.match(/^\/(?:people\/[^/]+\/|pages\/[^/]+\/)?([^/]+)\/?$/i);
+      const peopleMatch = path.match(/^\/people\/[^/]+\/([^/]+)/i);
+      const pageMatch = path.match(/^\/pages\/[^/]+\/([^/]+)/i);
+      const usernameMatch = path.match(/^\/([^/]+)\/?$/i);
+      const derivedId = url.searchParams.get('id') || (peopleMatch && peopleMatch[1]) ||
+        (pageMatch && pageMatch[1]) || (usernameMatch && ('username:' + usernameMatch[1].toLowerCase())) || '';
       return {
         name,
         url: href.slice(0, 2048),
-        id: (url.searchParams.get('id') || (match && match[1]) || '').slice(0, 200)
+        id: derivedId.slice(0, 200)
       };
     }
     return { name: '', url: '', id: '' };
