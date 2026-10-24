@@ -27,7 +27,7 @@
     if (!safeFacebookUrl(value)) return false;
     try {
       const url = new URL(value, window.location.href);
-      return /\/(posts|permalink|videos?|reel|photos?|watch)(\/|$)/i.test(url.pathname) ||
+      return /\/(posts|permalink|videos?|reel|photos?|watch|share\/(?:p|v|r)\/[^/]+)(\/|$)/i.test(url.pathname) ||
         url.searchParams.has('story_fbid') || url.searchParams.has('comment_id') || url.searchParams.has('reply_comment_id');
     } catch (_) { return false; }
   }
