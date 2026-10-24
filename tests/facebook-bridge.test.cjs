@@ -127,7 +127,7 @@ test('Facebook bridge collects comments and links a nested reply to its parent',
     __commentCrawlBridge: false,
     location: { href: openedUrl },
     scrollY: 100,
-    scrollTo() {}
+    scrollTo(x, y) { this.scrollY = y; }
   };
   const listeners = [];
   const context = {
@@ -162,4 +162,62 @@ test('Facebook share permalink is accepted as a post URL for redirect/loading', 
   assert.equal(result.ok, false);
   assert.match(result.error, /vùng nội dung bài viết/);
   assert.doesNotMatch(result.error, /mở bài viết Facebook ở trang riêng/);
+});
+
+
+test('Facebook bridge retains comments seen before the DOM virtualizes them away', async () => {
+  const postUrl = 'https://www.facebook.com/sample.page/posts/777';
+  const post = new MockElement('div', { role: 'article', 'aria-label': 'Post by Sample Page', 'data-testid': 'post-container' });
+  const firstComment = new MockElement('div', { role: 'article', id: 'comment-701' });
+  firstComment.append(
+    new MockElement('a', { href: 'https://www.facebook.com/anna' }, 'Anna'),
+    new MockElement('div', { dir: 'auto' }, 'First comment visible near the top.'),
+    new MockElement('a', { href: postUrl + '?comment_id=701' }, 'Comment permalink'),
+    new MockElement('button', {}, 'Reply')
+  );
+  const secondComment = new MockElement('div', { role: 'article', id: 'comment-702' });
+  secondComment.append(
+    new MockElement('a', { href: 'https://www.facebook.com/bob' }, 'Bob'),
+    new MockElement('div', { dir: 'auto' }, 'Second comment loaded at the bottom.'),
+    new MockElement('a', { href: postUrl + '?comment_id=702' }, 'Comment permalink'),
+    new MockElement('button', {}, 'Reply')
+  );
+  post.append(new MockElement('a', { href: postUrl }, 'Post permalink'), firstComment);
+  const main = new MockElement('div', { role: 'main' }).append(post);
+  const document = {
+    title: 'Sample Page post',
+    body: main,
+    documentElement: { scrollHeight: 200 },
+    querySelector(selector) { return selector === '[role="main"]' || selector === 'main' ? main : null; },
+    querySelectorAll(selector) { return main.querySelectorAll(selector); }
+  };
+  const window = {
+    __commentCrawlBridge: false,
+    location: { href: postUrl },
+    scrollY: 100,
+    innerHeight: 800,
+    scrollTo(x, y) {
+      this.scrollY = y;
+      if (y > 0 && post.children.includes(firstComment)) {
+        post.children = post.children.filter(child => child !== firstComment);
+        firstComment.parentElement = null;
+        post.append(secondComment);
+      }
+    }
+  };
+  const listeners = [];
+  const context = {
+    window, document, URL, Date, Promise, Array, String, RegExp, Number, Object, Math, WeakMap, WeakSet, Error,
+    setTimeout(fn) { fn(); return 1; }, clearTimeout() {},
+    getComputedStyle() { return { display: 'block', visibility: 'visible' }; },
+    chrome: { runtime: { onMessage: { addListener(fn) { listeners.push(fn); } } } }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'facebook-bridge.js'), 'utf8'), context);
+  const result = await new Promise(resolve => {
+    assert.equal(listeners[0]({ type: 'COMMENT_CRAWL_COLLECT' }, {}, resolve), true);
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.comments.length, 2);
+  assert.ok(result.comments.some(c => c.text === 'First comment visible near the top.'));
+  assert.ok(result.comments.some(c => c.text === 'Second comment loaded at the bottom.'));
 });
