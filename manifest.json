@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Facebook Comment Crawl & Analysis",
+  "version": "1.0.0",
+  "description": "Thu thập bình luận bài đang mở, đối chiếu hồ sơ và lập báo cáo cục bộ.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "Mở Facebook Comment Crawl"
+  },
+  "options_page": "dashboard.html",
+  "optional_permissions": [
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "https://www.facebook.com/*",
+    "https://facebook.com/*",
+    "https://web.facebook.com/*",
+    "https://m.facebook.com/*",
+    "https://meta.ai/*",
+    "https://www.meta.ai/*"
+  ]
+}
