@@ -75,6 +75,7 @@ class MockElement {
       return false;
     });
   }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   querySelectorAll(selector) {
     const result = [];
     const visit = node => {
