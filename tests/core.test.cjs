@@ -109,3 +109,30 @@ test('comment filters combine post, date, text and match status safely', () => {
   assert.deepEqual(C.filterComments(comments, { match: 'ambiguous', query: 'chi' }, people).map(c => c.id), ['c']);
   assert.deepEqual(C.filterComments(comments, { dateFrom: '2026-10-22' }, people).map(c => c.id), ['c', 'a']);
 });
+
+
+test('roster reconciliation links exact identities and preserves manual decisions', () => {
+  const people = [
+    { id: 'p1', name: 'An', profileUrl: 'https://www.facebook.com/anna', profileId: 'username:anna', rosterId: 'A1' },
+    { id: 'p2', name: 'Bình', profileUrl: 'https://www.facebook.com/binh', profileId: 'username:binh', rosterId: 'B1' },
+    { id: 'p3', name: 'Bình', profileUrl: 'https://www.facebook.com/binh', profileId: 'username:binh', rosterId: 'B2' }
+  ];
+  const comments = [
+    { id: 'exact', authorName: 'An', authorProfileUrl: 'https://www.facebook.com/anna', authorProfileId: 'username:anna' },
+    { id: 'conflict', authorName: 'An', authorProfileUrl: 'https://www.facebook.com/someone-else', authorProfileId: 'username:someone-else' },
+    { id: 'ambiguous', authorName: 'Bình', authorProfileUrl: 'https://www.facebook.com/binh', authorProfileId: 'username:binh' },
+    { id: 'manual', authorName: 'Different', personId: 'p2', matchMethod: 'manual', matchStatus: 'manually_matched' },
+    { id: 'unlinked', authorName: 'An', personId: '', matchMethod: 'manual_unlink', matchStatus: 'unmatched' }
+  ];
+  const result = C.reconcileComments(comments, people);
+  const byId = Object.fromEntries(result.comments.map(c => [c.id, c]));
+  assert.equal(byId.exact.personId, 'p1');
+  assert.equal(byId.exact.matchStatus, 'matched');
+  assert.equal(byId.conflict.personId, '');
+  assert.equal(byId.conflict.matchStatus, 'unmatched');
+  assert.equal(byId.ambiguous.matchStatus, 'ambiguous');
+  assert.equal(byId.manual.personId, 'p2');
+  assert.equal(byId.unlinked.personId, '');
+  assert.equal(result.matched, 1);
+  assert.equal(result.ambiguous, 1);
+});
