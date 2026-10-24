@@ -82,3 +82,15 @@ test('state validation accepts a complete multi-batch report larger than one pro
   state.reports.push({ id: 'r1', title: 'Weekly', text: 'x'.repeat(50000), createdAt: '2026-10-24T00:00:00.000Z' });
   assert.equal(C.valid(state), true);
 });
+
+
+test('CSV parser auto-detects semicolon and tab delimiters', () => {
+  assert.deepEqual(C.parseCsv('Tên Facebook;profileUrl;Mã đối chiếu\r\n"An, Nguyễn";https://www.facebook.com/an;A-01'), [
+    ['Tên Facebook', 'profileUrl', 'Mã đối chiếu'],
+    ['An, Nguyễn', 'https://www.facebook.com/an', 'A-01']
+  ]);
+  assert.deepEqual(C.parseCsv('name\tprofileUrl\nAn\thttps://www.facebook.com/an'), [
+    ['name', 'profileUrl'],
+    ['An', 'https://www.facebook.com/an']
+  ]);
+});
