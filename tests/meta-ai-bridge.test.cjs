@@ -37,7 +37,7 @@ function loadBridge(options) {
   };
   const document = {
     querySelectorAll(selector) {
-      if (selector.startsWith('textarea, [contenteditable')) return opts.composer === false ? [] : [composer];
+      if (selector.startsWith('textarea,')) return opts.composer === false ? [] : [composer];
       if (selector.startsWith('main [data-message-author-role') || selector.startsWith('[data-message-author-role')) return assistantMessages;
       if (selector === 'button,[role="button"]') return opts.sendButton === false ? [] : [sendButton];
       if (selector.startsWith('[data-message-author-role="assistant"]')) return assistantMessages;
